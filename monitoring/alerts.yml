@@ -1,0 +1,68 @@
+groups:
+- name: microservice-template-alerts
+  rules:
+  # Alertas de disponibilidad
+  - alert: ServiceDown
+    expr: up{job="microservice-template"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Microservice Template está caído"
+      description: "El servicio microservice-template no responde por más de 1 minuto"
+
+  - alert: HighErrorRate
+    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Alta tasa de errores HTTP 5xx"
+      description: "Tasa de errores 5xx es {{ $value }} por segundo"
+
+  # Alertas de performance
+  - alert: HighResponseTime
+    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Tiempo de respuesta alto"
+      description: "El percentil 95 del tiempo de respuesta es {{ $value }}s"
+
+  - alert: HighMemoryUsage
+    expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.8
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Uso alto de memoria"
+      description: "Uso de memoria es {{ $value | humanizePercentage }}"
+
+  - alert: HighCPUUsage
+    expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Uso alto de CPU"
+      description: "Uso de CPU es {{ $value | humanizePercentage }}"
+
+  # Alertas de negocio
+  - alert: LowRequestVolume
+    expr: rate(http_requests_total[5m]) < 0.1
+    for: 10m
+    labels:
+      severity: info
+    annotations:
+      summary: "Volumen bajo de requests"
+      description: "Volumen de requests es {{ $value }} por segundo"
+
+  - alert: DatabaseConnectionFailed
+    expr: up{job="postgres"} == 0
+    for: 1m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Conexión a base de datos falló"
+      description: "No se puede conectar a la base de datos PostgreSQL"

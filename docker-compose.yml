@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Aplicación principal
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=development
+    env_file:
+      - .env.local
+    depends_on:
+      - postgres
+      - vault
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: microservice_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Vault para manejo de secretos (desarrollo)
+  vault:
+    image: vault:latest
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault_data:/vault/data
+      - ./scripts/vault-init.sh:/vault/init.sh
+    networks:
+      - microservice-network
+    restart: unless-stopped
+    command: ["vault", "server", "-dev"]
+
+  # Redis para caché (opcional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+  # Prometheus para métricas
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - microservice-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  vault_data:
+  redis_data:
+  prometheus_data:
+
+networks:
+  microservice-network:
+    driver: bridge
