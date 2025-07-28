@@ -112,8 +112,8 @@ steps:
 
 # Configuración de substituciones
 substitutions:
-  _SERVICE_NAME: 'microservice-template'
-  _REGION: 'us-central1'
+  _SERVICE_NAME: 'it-integration-service'
+  _REGION: 'us-east1'
 
 # Opciones de build
 options:
@@ -124,8 +124,9 @@ options:
 
 timeout: '1200s'
 
-artifacts:
-  objects:
-    location: 'gs://$PROJECT_ID-build-artifacts'
-    paths:
-      - 'coverage.out'
+# Artifacts opcionales - crear bucket primero si es necesario
+# artifacts:
+#   objects:
+#     location: 'gs://$PROJECT_ID-build-artifacts'
+#     paths:
+#       - 'coverage.out'

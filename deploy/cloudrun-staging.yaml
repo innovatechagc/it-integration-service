@@ -64,5 +64,4 @@ spec:
           httpGet:
             path: /api/v1/ready
             port: 8080
-          initialDelaySeconds: 5
           periodSeconds: 5
