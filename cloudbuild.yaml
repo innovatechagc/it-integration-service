@@ -34,29 +34,29 @@ steps:
       - 'push'
       - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
 
-  # Paso 4: Preparar configuración de despliegue
+  # Paso 4: Preparar configuración para producción
   - name: 'gcr.io/cloud-builders/gcloud'
     entrypoint: 'bash'
     args:
       - '-c'
       - |
-        # Determinar entorno según la rama
         if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
-          echo "Desplegando a producción..."
-          CONFIG_FILE="deploy/cloudrun-production.yaml"
-          SERVICE_SUFFIX=""
+          echo "Preparando configuración para producción..."
+          cp deploy/cloudrun-production.yaml /workspace/cloudrun-config.yaml
+          sed -i "s/PROJECT_ID/$PROJECT_ID/g" /workspace/cloudrun-config.yaml
+          sed -i "s/microservice-template:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /workspace/cloudrun-config.yaml
+          echo "DEPLOY_ENV=production" > /workspace/deploy-env
+          echo "SERVICE_SUFFIX=" >> /workspace/deploy-env
         else
-          echo "Desplegando a staging..."
-          CONFIG_FILE="deploy/cloudrun-staging.yaml"
-          SERVICE_SUFFIX="-staging"
+          echo "Preparando configuración para staging..."
+          cp deploy/cloudrun-staging.yaml /workspace/cloudrun-config.yaml
+          sed -i "s/PROJECT_ID/$PROJECT_ID/g" /workspace/cloudrun-config.yaml
+          sed -i "s/microservice-template:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /workspace/cloudrun-config.yaml
+          echo "DEPLOY_ENV=staging" > /workspace/deploy-env
+          echo "SERVICE_SUFFIX=-staging" >> /workspace/deploy-env
         fi
         
-        # Crear copia temporal y reemplazar placeholders
-        cp $CONFIG_FILE /workspace/cloudrun-config.yaml
-        sed -i "s/PROJECT_ID/$PROJECT_ID/g" /workspace/cloudrun-config.yaml
-        sed -i "s/microservice-template:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /workspace/cloudrun-config.yaml
-        
-        echo "Configuración preparada para $CONFIG_FILE"
+        echo "Configuración preparada:"
         cat /workspace/cloudrun-config.yaml
 
   # Paso 5: Desplegar a Cloud Run
@@ -65,14 +65,10 @@ steps:
     args:
       - '-c'
       - |
-        # Determinar nombre del servicio según la rama
-        if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
-          SERVICE_SUFFIX=""
-        else
-          SERVICE_SUFFIX="-staging"
-        fi
+        # Leer configuración del paso anterior
+        source /workspace/deploy-env
         
-        echo "Desplegando servicio ${_SERVICE_NAME}$SERVICE_SUFFIX..."
+        echo "Desplegando servicio ${_SERVICE_NAME}$SERVICE_SUFFIX en entorno $DEPLOY_ENV..."
         
         gcloud run services replace /workspace/cloudrun-config.yaml \
           --region=${_REGION} \
@@ -89,7 +85,7 @@ steps:
         echo "Esperando que el servicio esté listo..."
         sleep 30
         
-        if curl -f "$SERVICE_URL/api/v1/health" --max-time 10; then
+        if curl -f "$SERVICE_URL/api/v1/health" --max-time 10 --silent; then
           echo "✅ Health check exitoso"
         else
           echo "⚠️  Warning: Health check falló, pero el despliegue continuó"
