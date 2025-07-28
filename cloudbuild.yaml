@@ -1,0 +1,124 @@
+steps:
+  # Paso 1: Ejecutar tests
+  - name: 'golang:1.21-alpine'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        apk add --no-cache git
+        go mod download
+        go test ./... -v -coverprofile=coverage.out
+        echo "Tests completados exitosamente"
+    env:
+      - 'CGO_ENABLED=0'
+      - 'GOOS=linux'
+
+  # Paso 2: Construir imagen Docker
+  - name: 'gcr.io/cloud-builders/docker'
+    args: 
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+      - '.'
+
+  # Paso 3: Subir imagen a Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:$COMMIT_SHA'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/${_SERVICE_NAME}:latest'
+
+  # Paso 4: Preparar configuración de despliegue
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Determinar entorno según la rama
+        if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
+          echo "Desplegando a producción..."
+          CONFIG_FILE="deploy/cloudrun-production.yaml"
+          SERVICE_SUFFIX=""
+        else
+          echo "Desplegando a staging..."
+          CONFIG_FILE="deploy/cloudrun-staging.yaml"
+          SERVICE_SUFFIX="-staging"
+        fi
+        
+        # Crear copia temporal y reemplazar placeholders
+        cp $CONFIG_FILE /workspace/cloudrun-config.yaml
+        sed -i "s/PROJECT_ID/$PROJECT_ID/g" /workspace/cloudrun-config.yaml
+        sed -i "s/microservice-template:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /workspace/cloudrun-config.yaml
+        
+        echo "Configuración preparada para $CONFIG_FILE"
+        cat /workspace/cloudrun-config.yaml
+
+  # Paso 5: Desplegar a Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        # Determinar nombre del servicio según la rama
+        if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
+          SERVICE_SUFFIX=""
+        else
+          SERVICE_SUFFIX="-staging"
+        fi
+        
+        echo "Desplegando servicio ${_SERVICE_NAME}$SERVICE_SUFFIX..."
+        
+        gcloud run services replace /workspace/cloudrun-config.yaml \
+          --region=${_REGION} \
+          --quiet
+        
+        # Obtener URL del servicio
+        SERVICE_URL=$(gcloud run services describe ${_SERVICE_NAME}$SERVICE_SUFFIX \
+          --region=${_REGION} \
+          --format="value(status.url)")
+        
+        echo "Servicio desplegado en: $SERVICE_URL"
+        
+        # Verificar que el servicio responda
+        echo "Esperando que el servicio esté listo..."
+        sleep 30
+        
+        if curl -f "$SERVICE_URL/api/v1/health" --max-time 10; then
+          echo "✅ Health check exitoso"
+        else
+          echo "⚠️  Warning: Health check falló, pero el despliegue continuó"
+        fi
+
+# Configuración de substituciones
+substitutions:
+  _SERVICE_NAME: 'microservice-template'
+  _REGION: 'us-central1'
+
+# Opciones de build
+options:
+  # Usar máquina más potente para builds más rápidos
+  machineType: 'E2_HIGHCPU_8'
+  
+  # Configurar logging
+  logging: CLOUD_LOGGING_ONLY
+  
+  # Variables de entorno para el build
+  env:
+    - 'DOCKER_BUILDKIT=1'
+
+# Configurar triggers automáticos
+# (esto se puede configurar también desde la consola de GCP)
+timeout: '1200s'
+
+# Artefactos opcionales
+artifacts:
+  objects:
+    location: 'gs://$PROJECT_ID-build-artifacts'
+    paths:
+      - 'coverage.out'

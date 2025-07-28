@@ -1,12 +1,73 @@
-# Despliegue con AWS CodeBuild a Google Cloud Run
+# Despliegue a Google Cloud Run
 
-Esta guía explica cómo configurar y usar AWS CodeBuild para desplegar automáticamente la aplicación a Google Cloud Run.
+Esta guía explica cómo configurar despliegues automáticos a Google Cloud Run usando tanto AWS CodeBuild como Google Cloud Build.
 
-## Arquitectura del Despliegue
+## Opciones de Despliegue
 
+### Opción 1: Google Cloud Build (Recomendado)
+```
+GitHub/GitLab → Google Cloud Build → Google Container Registry → Google Cloud Run
+```
+
+### Opción 2: AWS CodeBuild
 ```
 GitHub/GitLab → AWS CodeBuild → Google Container Registry → Google Cloud Run
 ```
+
+## Google Cloud Build (cloudbuild.yaml)
+
+### Configuración Rápida
+
+1. **Habilitar APIs necesarias:**
+```bash
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable containerregistry.googleapis.com
+```
+
+2. **Configurar permisos para Cloud Build:**
+```bash
+# Obtener el número del proyecto
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format="value(projectNumber)")
+
+# Dar permisos a Cloud Build para desplegar en Cloud Run
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
+    --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding $PROJECT_ID \
+    --member="serviceAccount:$PROJECT_NUMBER@cloudbuild.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountUser"
+```
+
+3. **Crear trigger desde repositorio:**
+```bash
+# Para GitHub
+gcloud builds triggers create github \
+    --repo-name=tu-repositorio \
+    --repo-owner=tu-usuario \
+    --branch-pattern=".*" \
+    --build-config=cloudbuild.yaml
+
+# Para GitLab o otros
+gcloud builds triggers create cloud-source-repositories \
+    --repo=tu-repositorio \
+    --branch-pattern=".*" \
+    --build-config=cloudbuild.yaml
+```
+
+### Características del cloudbuild.yaml
+
+- **Tests automáticos** antes del despliegue
+- **Build multi-arquitectura** optimizado
+- **Despliegue condicional** según rama (main → producción, otras → staging)
+- **Health checks** automáticos post-despliegue
+- **Logging centralizado** en Cloud Logging
+- **Artefactos** guardados en Cloud Storage
+
+---
+
+## AWS CodeBuild (buildspec.yml / codebuild.yaml)
 
 ## Configuración Inicial
 
