@@ -1,6 +1,6 @@
-# Template de Microservicio Go
+# Integration Service
 
-Template estandarizado para crear microservicios en Go que se despliegan en GCP Cloud Run. Incluye configuración para desarrollo local, testing, QA y producción.
+Microservicio de integración para gestionar canales de mensajería externos y el ecosistema del chatbot. Este servicio recibe mensajes de plataformas como WhatsApp, Facebook Messenger, Instagram, Telegram, Webchat, los normaliza y los reenvía al messaging-service y/o al bot-service.
 
 ## 🚀 Características
 
@@ -122,10 +122,25 @@ make lint
 - `GET /api/v1/health` - Estado del servicio
 - `GET /api/v1/ready` - Readiness check
 
-### Métricas
-- `GET /metrics` - Métricas de Prometheus
+### Gestión de Integraciones
+- `GET /api/v1/integrations/channels` - Listar integraciones por tenant
+- `GET /api/v1/integrations/channels/:id` - Detalles de integración
+- `POST /api/v1/integrations/channels` - Crear nueva integración
+- `PATCH /api/v1/integrations/channels/:id` - Actualizar integración
+- `DELETE /api/v1/integrations/channels/:id` - Eliminar integración
 
-### Documentación
+### Envío de Mensajes
+- `POST /api/v1/integrations/send` - Enviar mensaje por canal
+
+### Webhooks
+- `POST /api/v1/integrations/webhooks/whatsapp` - Webhook WhatsApp
+- `GET/POST /api/v1/integrations/webhooks/messenger` - Webhook Messenger
+- `GET/POST /api/v1/integrations/webhooks/instagram` - Webhook Instagram
+- `POST /api/v1/integrations/webhooks/telegram` - Webhook Telegram
+- `POST /api/v1/integrations/webhooks/webchat` - Webhook Webchat
+
+### Métricas y Documentación
+- `GET /metrics` - Métricas de Prometheus
 - `GET /swagger/index.html` - Documentación Swagger
 
 ## 🔧 Configuración por Entornos

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,7 +13,6 @@ import (
 	"github.com/company/microservice-template/internal/middleware"
 	"github.com/company/microservice-template/internal/services"
 	"github.com/company/microservice-template/pkg/logger"
-	"github.com/company/microservice-template/pkg/vault"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +36,21 @@ func main() {
 	
 	// Inicializar servicios
 	healthService := services.NewHealthService()
-	// exampleService := services.NewExampleService(vaultClient, logger)
+	
+	// Servicios de integración (usando mocks para desarrollo inicial)
+	webhookService := services.NewWebhookService(cfg.Integration.MessagingServiceURL, logger)
+	providerService := services.NewMessagingProviderService(logger)
+	
+	// TODO: Inicializar repositorios reales cuando se configure la base de datos
+	// Por ahora usamos servicios sin repositorios para testing
+	integrationService := services.NewIntegrationService(
+		nil, // channelRepo - TODO: implementar
+		nil, // inboundRepo - TODO: implementar  
+		nil, // outboundRepo - TODO: implementar
+		webhookService,
+		providerService,
+		logger,
+	)
 	
 	// Configurar Gin
 	if cfg.Environment == "production" {
@@ -52,7 +64,7 @@ func main() {
 	router.Use(middleware.Metrics())
 	
 	// Rutas
-	handlers.SetupRoutes(router, healthService, logger)
+	handlers.SetupRoutes(router, healthService, integrationService, logger)
 	
 	// Servidor HTTP
 	srv := &http.Server{

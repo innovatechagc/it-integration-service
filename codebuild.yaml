@@ -1,0 +1,142 @@
+version: 0.2
+
+env:
+  variables:
+    # Variables de configuración básicas
+    GO_VERSION: "1.21"
+    DOCKER_BUILDKIT: "1"
+    
+  parameter-store:
+    # Variables desde Parameter Store de AWS
+    PROJECT_ID: "/microservice-template/gcp/project-id"
+    REGION: "/microservice-template/gcp/region"
+    SERVICE_NAME: "/microservice-template/service-name"
+    
+  secrets-manager:
+    # Credenciales desde Secrets Manager
+    GCP_SERVICE_ACCOUNT_KEY: "microservice-template/gcp-service-account"
+
+phases:
+  install:
+    runtime-versions:
+      golang: 1.21
+      docker: 20
+    commands:
+      - echo "Instalando dependencias..."
+      # Instalar Google Cloud SDK
+      - curl https://sdk.cloud.google.com | bash
+      - export PATH=$PATH:/root/google-cloud-sdk/bin
+      - gcloud version
+      
+      # Configurar autenticación con GCP
+      - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > /tmp/gcp-key.json
+      - gcloud auth activate-service-account --key-file=/tmp/gcp-key.json
+      - gcloud config set project $PROJECT_ID
+      - gcloud auth configure-docker gcr.io --quiet
+      
+  pre_build:
+    commands:
+      - echo "Ejecutando pre-build en $(date)"
+      - echo "Verificando variables de entorno..."
+      - echo "PROJECT_ID=$PROJECT_ID"
+      - echo "REGION=$REGION"
+      - echo "SERVICE_NAME=$SERVICE_NAME"
+      
+      # Verificar conectividad con GCP
+      - gcloud projects describe $PROJECT_ID
+      
+      # Preparar tags de imagen
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH:=latest}
+      - IMAGE_URI=gcr.io/$PROJECT_ID/$SERVICE_NAME:$IMAGE_TAG
+      - LATEST_URI=gcr.io/$PROJECT_ID/$SERVICE_NAME:latest
+      
+      - echo "IMAGE_URI=$IMAGE_URI"
+      - echo "LATEST_URI=$LATEST_URI"
+      
+  build:
+    commands:
+      - echo "Iniciando build en $(date)"
+      
+      # Ejecutar tests
+      - echo "Ejecutando tests..."
+      - go mod download
+      - go test ./... -v -coverprofile=coverage.out
+      
+      # Construir imagen Docker
+      - echo "Construyendo imagen Docker..."
+      - docker build -t $IMAGE_URI .
+      - docker tag $IMAGE_URI $LATEST_URI
+      
+      # Push de la imagen a Google Container Registry
+      - echo "Subiendo imagen a GCR..."
+      - docker push $IMAGE_URI
+      - docker push $LATEST_URI
+      
+  post_build:
+    commands:
+      - echo "Iniciando post-build en $(date)"
+      
+      # Determinar el archivo de configuración según la rama
+      - |
+        if [ "$CODEBUILD_WEBHOOK_HEAD_REF" = "refs/heads/main" ] || [ "$CODEBUILD_SOURCE_VERSION" = "main" ]; then
+          echo "Desplegando a producción..."
+          CONFIG_FILE="deploy/cloudrun-production.yaml"
+          SERVICE_SUFFIX=""
+        else
+          echo "Desplegando a staging..."
+          CONFIG_FILE="deploy/cloudrun-staging.yaml"
+          SERVICE_SUFFIX="-staging"
+        fi
+      
+      # Crear copia temporal del archivo de configuración
+      - cp $CONFIG_FILE /tmp/cloudrun-config.yaml
+      
+      # Reemplazar placeholders en el archivo de configuración
+      - sed -i "s/PROJECT_ID/$PROJECT_ID/g" /tmp/cloudrun-config.yaml
+      - sed -i "s/microservice-template:latest/$SERVICE_NAME:$IMAGE_TAG/g" /tmp/cloudrun-config.yaml
+      
+      # Desplegar a Cloud Run
+      - echo "Desplegando servicio $SERVICE_NAME$SERVICE_SUFFIX..."
+      - |
+        gcloud run services replace /tmp/cloudrun-config.yaml \
+          --region=$REGION \
+          --quiet
+      
+      # Verificar el despliegue y obtener URL
+      - |
+        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME$SERVICE_SUFFIX \
+          --region=$REGION \
+          --format="value(status.url)")
+        echo "Servicio desplegado en: $SERVICE_URL"
+      
+      # Verificar que el servicio responda
+      - |
+        echo "Verificando health check..."
+        sleep 30
+        curl -f "$SERVICE_URL/api/v1/health" || echo "Warning: Health check failed"
+      
+      # Limpiar credenciales y archivos temporales
+      - rm -f /tmp/gcp-key.json
+      - rm -f /tmp/cloudrun-config.yaml
+      
+      - echo "Despliegue completado exitosamente en $(date)"
+
+reports:
+  go_coverage:
+    files:
+      - 'coverage.out'
+    base-directory: '.'
+    file-format: 'GOCOV'
+
+artifacts:
+  files:
+    - '**/*'
+  name: microservice-template-$(date +%Y-%m-%d-%H-%M-%S)
+  base-directory: '.'
+
+cache:
+  paths:
+    - '/go/pkg/mod/**/*'
+    - '/root/.cache/go-build/**/*'
+    - '/root/.docker/**/*'

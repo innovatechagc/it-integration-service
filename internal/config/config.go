@@ -8,12 +8,13 @@ import (
 )
 
 type Config struct {
-	Environment string
-	Port        string
-	LogLevel    string
-	VaultConfig VaultConfig
-	Database    DatabaseConfig
-	ExternalAPI ExternalAPIConfig
+	Environment   string
+	Port          string
+	LogLevel      string
+	VaultConfig   VaultConfig
+	Database      DatabaseConfig
+	ExternalAPI   ExternalAPIConfig
+	Integration   IntegrationConfig
 }
 
 type VaultConfig struct {
@@ -35,6 +36,12 @@ type ExternalAPIConfig struct {
 	BaseURL string
 	APIKey  string
 	Timeout int
+}
+
+type IntegrationConfig struct {
+	MessagingServiceURL string
+	EncryptionKey       string
+	WebhookSecrets      map[string]string
 }
 
 func Load() *Config {
@@ -62,6 +69,17 @@ func Load() *Config {
 			BaseURL: getEnv("EXTERNAL_API_URL", "https://api.example.com"),
 			APIKey:  getEnv("EXTERNAL_API_KEY", ""),
 			Timeout: getEnvAsInt("EXTERNAL_API_TIMEOUT", 30),
+		},
+		Integration: IntegrationConfig{
+			MessagingServiceURL: getEnv("MESSAGING_SERVICE_URL", "http://localhost:8081"),
+			EncryptionKey:       getEnv("ENCRYPTION_KEY", "default-key-change-in-production"),
+			WebhookSecrets: map[string]string{
+				"whatsapp":  getEnv("WHATSAPP_WEBHOOK_SECRET", ""),
+				"messenger": getEnv("MESSENGER_WEBHOOK_SECRET", ""),
+				"instagram": getEnv("INSTAGRAM_WEBHOOK_SECRET", ""),
+				"telegram":  getEnv("TELEGRAM_WEBHOOK_SECRET", ""),
+				"webchat":   getEnv("WEBCHAT_WEBHOOK_SECRET", ""),
+			},
 		},
 	}
 }

@@ -1,8 +1,6 @@
 package middleware
 
 import (
-	"time"
-
 	"github.com/company/microservice-template/pkg/logger"
 	"github.com/gin-gonic/gin"
 )

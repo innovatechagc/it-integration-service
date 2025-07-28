@@ -17,11 +17,14 @@ type Handler struct {
 	logger        logger.Logger
 }
 
-func SetupRoutes(router *gin.Engine, healthService services.HealthService, logger logger.Logger) {
+func SetupRoutes(router *gin.Engine, healthService services.HealthService, integrationService services.IntegrationService, logger logger.Logger) {
 	h := &Handler{
 		healthService: healthService,
 		logger:        logger,
 	}
+
+	// Integration handler
+	integrationHandler := NewIntegrationHandler(integrationService, logger)
 
 	// Swagger documentation (protegido en producción)
 	router.GET("/swagger/*any", middleware.SwaggerAuth(), ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -33,9 +36,31 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, logge
 		api.GET("/health", h.HealthCheck)
 		api.GET("/ready", h.ReadinessCheck)
 		
-		// Example routes (comentadas para testing)
-		// api.GET("/example", h.GetExample)
-		// api.POST("/example", h.CreateExample)
+		// Integration routes
+		integrations := api.Group("/integrations")
+		{
+			// Channel management
+			integrations.GET("/channels", integrationHandler.GetChannels)
+			integrations.GET("/channels/:id", integrationHandler.GetChannel)
+			integrations.POST("/channels", integrationHandler.CreateChannel)
+			integrations.PATCH("/channels/:id", integrationHandler.UpdateChannel)
+			integrations.DELETE("/channels/:id", integrationHandler.DeleteChannel)
+			
+			// Message sending
+			integrations.POST("/send", integrationHandler.SendMessage)
+			
+			// Webhooks
+			webhooks := integrations.Group("/webhooks")
+			{
+				webhooks.POST("/whatsapp", integrationHandler.WhatsAppWebhook)
+				webhooks.GET("/messenger", integrationHandler.MessengerWebhook)
+				webhooks.POST("/messenger", integrationHandler.MessengerWebhook)
+				webhooks.GET("/instagram", integrationHandler.InstagramWebhook)
+				webhooks.POST("/instagram", integrationHandler.InstagramWebhook)
+				webhooks.POST("/telegram", integrationHandler.TelegramWebhook)
+				webhooks.POST("/webchat", integrationHandler.WebchatWebhook)
+			}
+		}
 	}
 }
 

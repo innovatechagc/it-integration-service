@@ -73,6 +73,29 @@ seed: ## Ejecutar seeds de base de datos
 	@echo "Ejecutando seeds..."
 	go run scripts/seed.go
 
+# Integration Service specific commands
+init-integration-db: ## Inicializar base de datos para integration service
+	@echo "Inicializando base de datos de integración..."
+	psql $(DATABASE_URL) -f scripts/init-integration.sql
+
+test-webhooks: ## Probar webhooks localmente
+	@echo "Probando webhook de WhatsApp..."
+	curl -X POST http://localhost:8080/api/v1/integrations/webhooks/whatsapp \
+		-H "Content-Type: application/json" \
+		-d '{"entry":[{"changes":[{"value":{"messages":[{"id":"test","from":"123","timestamp":"1640995200","text":{"body":"test"},"type":"text"}],"metadata":{"phone_number_id":"123"}}}]}]}'
+
+test-send-message: ## Probar envío de mensaje
+	@echo "Probando envío de mensaje..."
+	curl -X POST http://localhost:8080/api/v1/integrations/send \
+		-H "Content-Type: application/json" \
+		-d '{"channel_id":"test-channel","recipient":"573001112233","content":{"type":"text","text":"Hello from Integration Service!"}}'
+
+create-test-channel: ## Crear canal de prueba
+	@echo "Creando canal de prueba..."
+	curl -X POST http://localhost:8080/api/v1/integrations/channels \
+		-H "Content-Type: application/json" \
+		-d '{"tenant_id":"test-tenant","platform":"whatsapp","provider":"meta","access_token":"test-token","webhook_url":"https://test.com/webhook","config":{"phone_number_id":"123456789"}}'
+
 # Docker commands
 docker-build: ## Construir imagen Docker
 	docker build -t $(DOCKER_IMAGE) .
