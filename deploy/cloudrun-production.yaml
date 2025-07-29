@@ -23,8 +23,6 @@ spec:
         env:
         - name: ENVIRONMENT
           value: "production"
-        - name: PORT
-          value: "8080"
         - name: LOG_LEVEL
           value: "warn"
         - name: JWT_SECRET
