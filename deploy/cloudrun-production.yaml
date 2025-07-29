@@ -14,7 +14,7 @@ spec:
         run.googleapis.com/execution-environment: gen2
     spec:
       containerConcurrency: 100
-      timeoutSeconds: 300
+      timeoutSeconds: 900
       containers:
       - image: gcr.io/PROJECT_ID/it-integration-service:latest
         ports:

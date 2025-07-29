@@ -1,14 +1,22 @@
 steps:
-  # Paso 1: Ejecutar tests
+  # Paso 1: Verificar y compilar aplicación
   - name: "golang:1.21-alpine"
     entrypoint: "sh"
     args:
       - "-c"
       - |
         apk add --no-cache git
+        echo "📦 Descargando dependencias..."
         go mod download
+        go mod tidy
+        
+        echo "🔍 Verificando que la aplicación compile..."
+        go build -o /tmp/app .
+        echo "✅ Aplicación compilada exitosamente"
+        
+        echo "🧪 Ejecutando tests..."
         go test ./... -v -coverprofile=coverage.out
-        echo "Tests completados exitosamente"
+        echo "✅ Tests completados exitosamente"
     env:
       - "CGO_ENABLED=0"
       - "GOOS=linux"
