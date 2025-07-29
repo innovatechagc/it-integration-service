@@ -1,7 +1,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: microservice-template
+  name: it-integration-service
   annotations:
     run.googleapis.com/ingress: all
     run.googleapis.com/execution-environment: gen2
@@ -17,7 +17,7 @@ spec:
       containerConcurrency: 100
       timeoutSeconds: 300
       containers:
-      - image: gcr.io/PROJECT_ID/microservice-template:latest
+      - image: gcr.io/PROJECT_ID/it-integration-service:latest
         ports:
         - containerPort: 8080
         env:
