@@ -52,12 +52,12 @@ steps:
           echo "Desplegando a producción..."
           
           # Preparar configuración
-          cp deploy/cloudrun-production.yaml /tmp/cloudrun-config.yaml
-          sed -i "s/PROJECT_ID/$PROJECT_ID/g" /tmp/cloudrun-config.yaml
-          sed -i "s/it-integration-service:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /tmp/cloudrun-config.yaml
+          cp deploy/cloudrun-production.yaml /tmp/cloudrun-prod-config.yaml
+          sed -i "s/PROJECT_ID/$PROJECT_ID/g" /tmp/cloudrun-prod-config.yaml
+          sed -i "s/it-integration-service:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /tmp/cloudrun-prod-config.yaml
           
           # Desplegar
-          gcloud run services replace /tmp/cloudrun-config.yaml \
+          gcloud run services replace /tmp/cloudrun-prod-config.yaml \
             --region=${_REGION} \
             --quiet
           
@@ -80,42 +80,38 @@ steps:
           echo "No es rama main/master, saltando despliegue a producción"
         fi
 
-  # Paso 5: Desplegar a staging (ramas que no sean main/master)
+  # Paso 5: Desplegar a staging (siempre)
   - name: "gcr.io/cloud-builders/gcloud"
     entrypoint: "bash"
     args:
       - "-c"
       - |
-        if [[ "$BRANCH_NAME" != "main" && "$BRANCH_NAME" != "master" ]]; then
-          echo "Desplegando a staging..."
-          
-          # Preparar configuración
-          cp deploy/cloudrun-staging.yaml /tmp/cloudrun-config.yaml
-          sed -i "s/PROJECT_ID/$PROJECT_ID/g" /tmp/cloudrun-config.yaml
-          sed -i "s/it-integration-service:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /tmp/cloudrun-config.yaml
-          
-          # Desplegar
-          gcloud run services replace /tmp/cloudrun-config.yaml \
-            --region=${_REGION} \
-            --quiet
-          
-          # Obtener URL del servicio
-          SERVICE_URL=$$(gcloud run services describe ${_SERVICE_NAME}-staging \
-            --region=${_REGION} \
-            --format="value(status.url)")
-          
-          echo "Servicio de staging desplegado en: $$SERVICE_URL"
-          
-          # Health check
-          echo "Verificando servicio de staging..."
-          sleep 30
-          if curl -f "$$SERVICE_URL/api/v1/health" --max-time 10 --silent; then
-            echo "✅ Health check de staging exitoso"
-          else
-            echo "⚠️ Warning: Health check de staging falló"
-          fi
+        echo "Desplegando a staging..."
+        
+        # Preparar configuración
+        cp deploy/cloudrun-staging.yaml /tmp/cloudrun-staging-config.yaml
+        sed -i "s/PROJECT_ID/$PROJECT_ID/g" /tmp/cloudrun-staging-config.yaml
+        sed -i "s/it-integration-service:latest/${_SERVICE_NAME}:$COMMIT_SHA/g" /tmp/cloudrun-staging-config.yaml
+        
+        # Desplegar
+        gcloud run services replace /tmp/cloudrun-staging-config.yaml \
+          --region=${_REGION} \
+          --quiet
+        
+        # Obtener URL del servicio
+        SERVICE_URL=$$(gcloud run services describe ${_SERVICE_NAME}-staging \
+          --region=${_REGION} \
+          --format="value(status.url)")
+        
+        echo "Servicio de staging desplegado en: $$SERVICE_URL"
+        
+        # Health check
+        echo "Verificando servicio de staging..."
+        sleep 30
+        if curl -f "$$SERVICE_URL/api/v1/health" --max-time 10 --silent; then
+          echo "✅ Health check de staging exitoso"
         else
-          echo "Es rama main/master, saltando despliegue a staging"
+          echo "⚠️ Warning: Health check de staging falló"
         fi
 
 # Configuración de substituciones
@@ -125,15 +121,8 @@ substitutions:
 
 # Opciones de build
 options:
-  # machineType: 'E2_HIGHCPU_8'
   logging: CLOUD_LOGGING_ONLY
   env:
     - "DOCKER_BUILDKIT=1"
 
 timeout: "1200s"
-# Artifacts opcionales - crear bucket primero si es necesario
-# artifacts:
-#   objects:
-#     location: 'gs://$PROJECT_ID-build-artifacts'
-#     paths:
-#       - 'coverage.out'
