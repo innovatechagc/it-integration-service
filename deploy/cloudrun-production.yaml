@@ -28,12 +28,12 @@ spec:
           valueFrom:
             secretKeyRef:
               key: latest
-              name: jwt-secret-prod
+              name: it-chatbot-jwt-password
         - name: DB_PASSWORD
           valueFrom:
             secretKeyRef:
               key: latest
-              name: db-password-prod
+              name: it-chatbot-db-password
         - name: VAULT_TOKEN
           valueFrom:
             secretKeyRef:
