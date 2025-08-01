@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Aplicación principal
   app:
@@ -10,14 +8,11 @@ services:
       - ENVIRONMENT=development
     env_file:
       - .env.local
-    depends_on:
-      - postgres
-      - vault
     networks:
       - microservice-network
     restart: unless-stopped
 
-  # Base de datos PostgreSQL
+  # Base de datos PostgreSQL local (opcional para desarrollo)
   postgres:
     image: postgres:15-alpine
     environment:
@@ -32,24 +27,8 @@ services:
     networks:
       - microservice-network
     restart: unless-stopped
-
-  # Vault para manejo de secretos (desarrollo)
-  vault:
-    image: vault:latest
-    cap_add:
-      - IPC_LOCK
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: dev-token
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    ports:
-      - "8200:8200"
-    volumes:
-      - vault_data:/vault/data
-      - ./scripts/vault-init.sh:/vault/init.sh
-    networks:
-      - microservice-network
-    restart: unless-stopped
-    command: ["vault", "server", "-dev"]
+    profiles:
+      - local-db
 
   # Redis para caché (opcional)
   redis:
@@ -61,8 +40,10 @@ services:
     networks:
       - microservice-network
     restart: unless-stopped
+    profiles:
+      - monitoring
 
-  # Prometheus para métricas
+  # Prometheus para métricas (opcional)
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -73,10 +54,11 @@ services:
     networks:
       - microservice-network
     restart: unless-stopped
+    profiles:
+      - monitoring
 
 volumes:
   postgres_data:
-  vault_data:
   redis_data:
   prometheus_data:
 

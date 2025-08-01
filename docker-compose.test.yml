@@ -8,13 +8,18 @@ services:
       - "8080:8080"
     environment:
       - ENVIRONMENT=test
+      - LOG_LEVEL=debug
     env_file:
-      - .env.test
+      - .env.local
     depends_on:
       - postgres-test
+      - webhook-simulator
     networks:
       - test-network
-    restart: "no"
+    volumes:
+      - .:/app
+      - /app/vendor
+    command: ["go", "run", "main.go"]
 
   # Base de datos para testing
   postgres-test:
@@ -29,22 +34,50 @@ services:
       - ./scripts/init-test.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - test-network
-    restart: "no"
+    tmpfs:
+      - /var/lib/postgresql/data
 
-  # Contenedor para ejecutar tests
-  test-runner:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
+  # Simulador de webhooks para testing de integraciones
+  webhook-simulator:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
     volumes:
-      - .:/app
-    working_dir: /app
-    depends_on:
-      - postgres-test
+      - ./tests/webhook-simulator:/usr/share/nginx/html
+      - ./tests/nginx.conf:/etc/nginx/nginx.conf
     networks:
       - test-network
-    command: ["go", "test", "./...", "-v"]
+
+  # Mock server para APIs externas
+  mock-server:
+    image: mockserver/mockserver:latest
+    ports:
+      - "1080:1080"
+    environment:
+      MOCKSERVER_PROPERTY_FILE: /config/mockserver.properties
+    volumes:
+      - ./tests/mocks:/config
+    networks:
+      - test-network
+
+  # Ngrok para exponer webhooks localmente (opcional)
+  ngrok:
+    image: ngrok/ngrok:latest
+    ports:
+      - "4040:4040"
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command: ["ngrok", "http", "app-test:8080"]
+    depends_on:
+      - app-test
+    networks:
+      - test-network
+    profiles:
+      - ngrok
 
 networks:
   test-network:
     driver: bridge
+
+volumes:
+  test_data:

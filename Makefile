@@ -1,163 +1,175 @@
-# Makefile para el template de microservicio Go
+# Makefile para el servicio de integraciones
 
-.PHONY: help build run test clean docker-build docker-run docker-test lint format deps upgrade-deps
+.PHONY: help build test run clean docker-build docker-run dev test-integration
 
 # Variables
-APP_NAME=microservice-template
-DOCKER_IMAGE=$(APP_NAME):latest
-DOCKER_TEST_IMAGE=$(APP_NAME):test
-MIGRATION_DIR=./migrations
+APP_NAME=integration-service
+DOCKER_IMAGE=gcr.io/$(PROJECT_ID)/$(APP_NAME)
+GO_VERSION=1.21
 
 help: ## Mostrar ayuda
 	@echo "Comandos disponibles:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-deps: ## Instalar dependencias
+# Desarrollo local
+dev: ## Iniciar entorno de desarrollo con hot reload
+	@echo "🚀 Iniciando entorno de desarrollo..."
+	docker-compose -f docker-compose.yml up --build app
+
+dev-simple: ## Ejecutar aplicación directamente (sin Docker)
+	@echo "🚀 Ejecutando aplicación localmente..."
+	@echo "Usando base de datos externa configurada en .env.local"
+	go run main.go
+
+dev-test: ## Iniciar entorno de testing
+	@echo "🧪 Iniciando entorno de testing..."
+	docker-compose -f docker-compose.test.yml up --build
+
+dev-down: ## Detener entorno de desarrollo
+	@echo "🛑 Deteniendo entorno de desarrollo..."
+	docker-compose -f docker-compose.yml down
+	docker-compose -f docker-compose.test.yml down
+
+dev-logs: ## Ver logs del entorno de desarrollo
+	docker-compose -f docker-compose.yml logs -f app
+
+# Testing
+test: ## Ejecutar tests unitarios
+	@echo "🧪 Ejecutando tests unitarios..."
+	go test ./... -v -race -coverprofile=coverage.out
+
+test-coverage: test ## Ejecutar tests y mostrar coverage
+	@echo "📊 Generando reporte de coverage..."
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Reporte generado en coverage.html"
+
+test-integration: ## Ejecutar tests de integración
+	@echo "🔗 Ejecutando tests de integración..."
+	docker-compose -f docker-compose.test.yml up -d
+	@sleep 10
+	go test ./tests/integration/... -v -tags=integration
+	docker-compose -f docker-compose.test.yml down
+
+# Build
+build: ## Compilar la aplicación
+	@echo "🔨 Compilando aplicación..."
+	CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o bin/$(APP_NAME) .
+
+build-local: ## Compilar para desarrollo local
+	@echo "🔨 Compilando para desarrollo local..."
+	go build -o bin/$(APP_NAME) .
+
+# Docker
+docker-build: ## Construir imagen Docker
+	@echo "🐳 Construyendo imagen Docker..."
+	docker build -t $(APP_NAME):latest .
+
+docker-run: ## Ejecutar contenedor Docker
+	@echo "🐳 Ejecutando contenedor Docker..."
+	docker run -p 8080:8080 --env-file .env.local $(APP_NAME):latest
+
+# Herramientas de desarrollo
+fmt: ## Formatear código
+	@echo "✨ Formateando código..."
+	go fmt ./...
+
+lint: ## Ejecutar linter
+	@echo "🔍 Ejecutando linter..."
+	golangci-lint run
+
+deps: ## Descargar dependencias
+	@echo "📦 Descargando dependencias..."
 	go mod download
 	go mod tidy
 
-upgrade-deps: ## Actualizar dependencias
-	go get -u ./...
-	go mod tidy
+# Base de datos
+db-migrate: ## Ejecutar migraciones de base de datos
+	@echo "🗄️ Ejecutando migraciones..."
+	@echo "Las migraciones se manejan en el servicio de migraciones"
 
-build: ## Compilar la aplicación
-	go build -o bin/$(APP_NAME) .
+db-reset: ## Resetear base de datos de desarrollo
+	@echo "🗄️ Reseteando base de datos..."
+	docker-compose -f docker-compose.yml down -v
+	docker-compose -f docker-compose.yml up -d postgres
+	@sleep 5
+	docker-compose -f docker-compose.yml up -d
 
-run: ## Ejecutar la aplicación localmente
-	go run .
+# Herramientas de integración
+webhook-simulator: ## Abrir simulador de webhooks
+	@echo "🔗 Abriendo simulador de webhooks..."
+	@echo "Simulador disponible en: http://localhost:8081"
+	docker-compose -f docker-compose.test.yml up -d webhook-simulator
 
-run-prod: ## Ejecutar con configuración de producción
-	ENVIRONMENT=production go run .
+ngrok: ## Exponer webhooks con ngrok (requiere NGROK_AUTHTOKEN)
+	@echo "🌐 Exponiendo webhooks con ngrok..."
+	docker-compose -f docker-compose.test.yml --profile ngrok up -d ngrok
+	@echo "Dashboard de ngrok: http://localhost:4040"
 
-test: ## Ejecutar tests unitarios
-	go test ./internal/... -v -race -coverprofile=coverage.out
+# Monitoreo
+metrics: ## Ver métricas de Prometheus
+	@echo "📊 Métricas disponibles en: http://localhost:9090"
+	docker-compose -f docker-compose.yml --profile monitoring up -d prometheus
 
-test-integration: ## Ejecutar tests de integración
-	go test ./tests/integration/... -v -race
+logs: ## Ver logs de la aplicación
+	@echo "📋 Viendo logs..."
+	docker-compose -f docker-compose.yml logs -f app
 
-test-e2e: ## Ejecutar tests end-to-end
-	go test ./tests/e2e/... -v -race
-
-test-all: ## Ejecutar todos los tests
-	go test ./... -v -race -coverprofile=coverage.out
-
-test-coverage: test-all ## Ejecutar tests y mostrar cobertura
-	go tool cover -html=coverage.out -o coverage.html
-	@echo "Reporte de cobertura generado en coverage.html"
-
-lint: ## Ejecutar linter
-	golangci-lint run
-
-format: ## Formatear código
-	go fmt ./...
-	goimports -w .
-
+# Limpieza
 clean: ## Limpiar archivos generados
+	@echo "🧹 Limpiando archivos generados..."
 	rm -rf bin/
 	rm -f coverage.out coverage.html
+	docker system prune -f
 
-# Database migrations
-migrate-create: ## Crear nueva migración (uso: make migrate-create NAME=create_users_table)
-	migrate create -ext sql -dir $(MIGRATION_DIR) -seq $(NAME)
+clean-all: clean ## Limpieza completa incluyendo volúmenes
+	@echo "🧹 Limpieza completa..."
+	docker-compose -f docker-compose.yml down -v
+	docker-compose -f docker-compose.test.yml down -v
+	docker volume prune -f
 
-migrate-up: ## Ejecutar migraciones de base de datos
-	migrate -path $(MIGRATION_DIR) -database "$(DATABASE_URL)" up
+# Despliegue
+deploy-staging: ## Desplegar a staging
+	@echo "🚀 Desplegando a staging..."
+	gcloud builds submit --config cloudbuild.yaml --substitutions=_ENV=staging
 
-migrate-down: ## Revertir última migración
-	migrate -path $(MIGRATION_DIR) -database "$(DATABASE_URL)" down 1
+deploy-prod: ## Desplegar a producción
+	@echo "🚀 Desplegando a producción..."
+	gcloud builds submit --config cloudbuild.yaml --substitutions=_ENV=production
 
-migrate-force: ## Forzar versión de migración (uso: make migrate-force VERSION=1)
-	migrate -path $(MIGRATION_DIR) -database "$(DATABASE_URL)" force $(VERSION)
+# Utilidades
+health: ## Verificar health check
+	@echo "❤️ Verificando health check..."
+	curl -f http://localhost:8080/api/v1/health || echo "Servicio no disponible"
 
-seed: ## Ejecutar seeds de base de datos
-	@echo "Ejecutando seeds..."
-	go run scripts/seed.go
+status: ## Ver estado de los servicios
+	@echo "📊 Estado de los servicios:"
+	docker-compose -f docker-compose.yml ps
 
-# Integration Service specific commands
-init-integration-db: ## Inicializar base de datos para integration service
-	@echo "Inicializando base de datos de integración..."
-	psql $(DATABASE_URL) -f scripts/init-integration.sql
+# Configuración inicial
+setup: ## Configuración inicial del proyecto
+	@echo "⚙️ Configuración inicial..."
+	@echo "1. Copiando archivos de configuración..."
+	@if [ ! -f .env.local ]; then cp .env.example .env.local; fi
+	@echo "2. Descargando dependencias..."
+	go mod download
+	@echo "3. Instalando herramientas de desarrollo..."
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@echo "✅ Configuración completada"
+	@echo ""
+	@echo "Próximos pasos:"
+	@echo "1. Editar .env.local con tus configuraciones"
+	@echo "2. Ejecutar 'make dev' para iniciar el entorno de desarrollo"
+	@echo "3. Abrir http://localhost:8081 para el simulador de webhooks"
 
-test-webhooks: ## Probar webhooks localmente
-	@echo "Probando webhook de WhatsApp..."
-	curl -X POST http://localhost:8080/api/v1/integrations/webhooks/whatsapp \
-		-H "Content-Type: application/json" \
-		-d '{"entry":[{"changes":[{"value":{"messages":[{"id":"test","from":"123","timestamp":"1640995200","text":{"body":"test"},"type":"text"}],"metadata":{"phone_number_id":"123"}}}]}]}'
-
-test-send-message: ## Probar envío de mensaje
-	@echo "Probando envío de mensaje..."
-	curl -X POST http://localhost:8080/api/v1/integrations/send \
-		-H "Content-Type: application/json" \
-		-d '{"channel_id":"test-channel","recipient":"573001112233","content":{"type":"text","text":"Hello from Integration Service!"}}'
-
-create-test-channel: ## Crear canal de prueba
-	@echo "Creando canal de prueba..."
-	curl -X POST http://localhost:8080/api/v1/integrations/channels \
-		-H "Content-Type: application/json" \
-		-d '{"tenant_id":"test-tenant","platform":"whatsapp","provider":"meta","access_token":"test-token","webhook_url":"https://test.com/webhook","config":{"phone_number_id":"123456789"}}'
-
-# Docker commands
-docker-build: ## Construir imagen Docker
-	docker build -t $(DOCKER_IMAGE) .
-
-docker-run: ## Ejecutar con Docker
-	docker run -p 8080:8080 --env-file .env.local $(DOCKER_IMAGE)
-
-docker-test: ## Ejecutar tests con Docker
-	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
-
-docker-dev: ## Levantar entorno de desarrollo completo
-	docker-compose up --build
-
-docker-down: ## Detener contenedores
-	docker-compose down -v
-
-docker-logs: ## Ver logs de contenedores
-	docker-compose logs -f
-
-# GCP Cloud Run deployment
-gcp-build: ## Construir imagen en GCP
-	gcloud builds submit --tag gcr.io/$(PROJECT_ID)/$(APP_NAME):latest
-
-deploy-staging: ## Deploy a staging en Cloud Run
-	gcloud run deploy $(APP_NAME)-staging \
-		--image gcr.io/$(PROJECT_ID)/$(APP_NAME):latest \
-		--platform managed \
-		--region us-central1 \
-		--allow-unauthenticated \
-		--set-env-vars ENVIRONMENT=test \
-		--set-secrets="JWT_SECRET=jwt-secret:latest,DB_PASSWORD=db-password:latest"
-
-deploy-prod: ## Deploy a producción en Cloud Run
-	gcloud run deploy $(APP_NAME) \
-		--image gcr.io/$(PROJECT_ID)/$(APP_NAME):latest \
-		--platform managed \
-		--region us-central1 \
-		--allow-unauthenticated \
-		--set-env-vars ENVIRONMENT=production \
-		--set-secrets="JWT_SECRET=jwt-secret-prod:latest,DB_PASSWORD=db-password-prod:latest"
-
-# Swagger
-swagger: ## Generar documentación Swagger
-	swag init -g main.go
-
-# Security
-security-scan: ## Ejecutar escaneo de seguridad
-	gosec ./...
-
-# Performance
-benchmark: ## Ejecutar benchmarks
-	go test -bench=. -benchmem ./...
-
-# Monitoring
-metrics: ## Ver métricas de la aplicación
-	curl http://localhost:8080/metrics
-
-health: ## Verificar health de la aplicación
-	curl http://localhost:8080/api/v1/health
-
-# Development helpers
-dev-setup: deps docker-dev migrate-up seed ## Setup completo para desarrollo
-	@echo "Entorno de desarrollo listo!"
-
-dev-reset: docker-down clean dev-setup ## Reset completo del entorno de desarrollo
+# Información del proyecto
+info: ## Mostrar información del proyecto
+	@echo "📋 Información del proyecto:"
+	@echo "Nombre: $(APP_NAME)"
+	@echo "Go Version: $(GO_VERSION)"
+	@echo "Docker Image: $(DOCKER_IMAGE)"
+	@echo ""
+	@echo "URLs importantes:"
+	@echo "- API: http://localhost:8080"
+	@echo "- Health Check: http://localhost:8080/api/v1/health"
+	@echo "- Webhook Simulator: http://localhost:8081"
+	@echo "- Prometheus: http://localhost:9090 (con --profile monitoring)"
