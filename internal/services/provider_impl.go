@@ -226,12 +226,26 @@ func (s *messagingProviderService) sendHTTPRequest(ctx context.Context, url, tok
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("provider API returned error: %d", resp.StatusCode)
+		// Leer el cuerpo de la respuesta para obtener más detalles del error
+		var errorBody bytes.Buffer
+		errorBody.ReadFrom(resp.Body)
+		s.logger.Error("Provider API error", map[string]interface{}{
+			"status_code": resp.StatusCode,
+			"response_body": errorBody.String(),
+			"url": url,
+		})
+		return fmt.Errorf("provider API returned error: %d - %s", resp.StatusCode, errorBody.String())
 	}
 
+	// Leer respuesta exitosa para logging
+	var responseBody bytes.Buffer
+	responseBody.ReadFrom(resp.Body)
+	
 	s.logger.Info("Message sent successfully", map[string]interface{}{
-		"url":    url,
-		"status": resp.StatusCode,
+		"url":           url,
+		"status":        resp.StatusCode,
+		"response_body": responseBody.String(),
+		"payload":       string(jsonData),
 	})
 
 	return nil
