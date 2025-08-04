@@ -321,6 +321,13 @@ func (h *IntegrationHandler) GetChatHistory(c *gin.Context) {
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/whatsapp [post]
 func (h *IntegrationHandler) WhatsAppWebhook(c *gin.Context) {
+	// Verificación de webhook de Meta (GET request)
+	if c.Request.Method == "GET" {
+		h.verifyFacebookWebhook(c)
+		return
+	}
+	
+	// Procesamiento de webhook (POST request)
 	h.processWebhook(c, h.integrationService.ProcessWhatsAppWebhook)
 }
 

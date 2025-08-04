@@ -3,7 +3,7 @@ services:
   app:
     build: .
     ports:
-      - "8080:8080"
+      - "8080:8080"  # Puerto principal para API y webhooks
     environment:
       - ENVIRONMENT=development
     env_file:
@@ -11,6 +11,12 @@ services:
     networks:
       - microservice-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Base de datos PostgreSQL local (opcional para desarrollo)
   postgres:

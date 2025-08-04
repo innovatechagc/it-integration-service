@@ -11,7 +11,7 @@ type ChannelIntegration struct {
 	TenantID    string                 `json:"tenant_id" db:"tenant_id"`
 	Platform    Platform               `json:"platform" db:"platform"`
 	Provider    Provider               `json:"provider" db:"provider"`
-	AccessToken string                 `json:"-" db:"access_token"` // Encrypted, no exponer en JSON
+	AccessToken string                 `json:"access_token,omitempty" db:"access_token"` // Encrypted, allow receiving but don't always show
 	WebhookURL  string                 `json:"webhook_url" db:"webhook_url"`
 	Status      IntegrationStatus      `json:"status" db:"status"`
 	Config      json.RawMessage        `json:"config" db:"config"`

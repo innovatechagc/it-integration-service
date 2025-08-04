@@ -56,6 +56,7 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")
 			{
+				webhooks.GET("/whatsapp", integrationHandler.WhatsAppWebhook)
 				webhooks.POST("/whatsapp", integrationHandler.WhatsAppWebhook)
 				webhooks.GET("/messenger", integrationHandler.MessengerWebhook)
 				webhooks.POST("/messenger", integrationHandler.MessengerWebhook)
