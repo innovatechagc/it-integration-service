@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strconv"
@@ -224,6 +225,96 @@ func (h *IntegrationHandler) SendMessage(c *gin.Context) {
 	})
 }
 
+// Chat/Messages endpoints
+
+// GetInboundMessages godoc
+// @Summary Obtener mensajes entrantes
+// @Description Obtiene el historial de mensajes entrantes por plataforma
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param platform query string false "Filtrar por plataforma"
+// @Param limit query int false "Límite de mensajes (default: 50)"
+// @Success 200 {object} domain.APIResponse
+// @Router /integrations/messages/inbound [get]
+func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
+	platform := c.Query("platform")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	// Consulta a la base de datos real
+	query := `
+		SELECT id, platform, payload, received_at, processed 
+		FROM inbound_messages 
+		WHERE ($1 = '' OR platform = $1)
+		ORDER BY received_at DESC 
+		LIMIT $2 OFFSET $3`
+
+	// Por ahora devolvemos datos mock, pero la estructura está lista
+	messages := []map[string]interface{}{
+		{
+			"id":          "example-id",
+			"platform":    platform,
+			"payload":     map[string]interface{}{"message": map[string]string{"text": "Ejemplo"}},
+			"received_at": "2025-08-04T14:09:50Z",
+			"processed":   true,
+		},
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Messages retrieved successfully",
+		Data:    messages,
+	})
+}
+
+// GetChatHistory godoc
+// @Summary Obtener historial de chat
+// @Description Obtiene la conversación entre el bot y un usuario específico
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param platform path string true "Plataforma (telegram, whatsapp, etc)"
+// @Param user_id path string true "ID del usuario"
+// @Success 200 {object} domain.APIResponse
+// @Router /integrations/chat/{platform}/{user_id} [get]
+func (h *IntegrationHandler) GetChatHistory(c *gin.Context) {
+	platform := c.Param("platform")
+	userID := c.Param("user_id")
+
+	// Aquí combinarías inbound y outbound messages para crear la conversación
+	conversation := []map[string]interface{}{
+		{
+			"id":        "msg-1",
+			"type":      "inbound",
+			"platform":  platform,
+			"user_id":   userID,
+			"text":      "/start",
+			"timestamp": "2025-08-04T14:09:50Z",
+		},
+		{
+			"id":        "msg-2", 
+			"type":      "outbound",
+			"platform":  platform,
+			"user_id":   userID,
+			"text":      "¡Hola! 👋 Tu integración está funcionando.",
+			"timestamp": "2025-08-04T14:10:00Z",
+			"status":    "sent",
+		},
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Chat history retrieved successfully",
+		Data: map[string]interface{}{
+			"platform":    platform,
+			"user_id":     userID,
+			"messages":    conversation,
+			"total_count": len(conversation),
+		},
+	})
+}
+
 // Webhook handlers
 
 // WhatsAppWebhook godoc
@@ -281,17 +372,41 @@ func (h *IntegrationHandler) InstagramWebhook(c *gin.Context) {
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/telegram [post]
 func (h *IntegrationHandler) TelegramWebhook(c *gin.Context) {
-	payload, err := io.ReadAll(c.Request.Body)
-	if err != nil {
+	var update map[string]interface{}
+	if err := c.ShouldBindJSON(&update); err != nil {
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
 			Code:    "INVALID_REQUEST",
-			Message: "Failed to read request body",
+			Message: "Invalid payload: " + err.Error(),
 		})
 		return
 	}
 
+	// Parse básico (luego puedes mapear al struct oficial de Telegram)
+	if message, exists := update["message"].(map[string]interface{}); exists {
+		text := ""
+		if textVal, ok := message["text"].(string); ok {
+			text = textVal
+		}
+		
+		chat := message["chat"].(map[string]interface{})
+		chatID := int64(chat["id"].(float64))
+
+		// Log para debugging
+		h.logger.Info("Telegram webhook received", 
+			"chat_id", chatID,
+			"text", text,
+		)
+
+		// Aquí puedes reenviar al bot-service u otra lógica
+		// Por ahora solo loggeamos
+	}
+
+	// Convertir el update a JSON para el servicio
+	payload, _ := json.Marshal(update)
 	if err := h.integrationService.ProcessTelegramWebhook(c.Request.Context(), payload); err != nil {
-		h.logger.Error("Failed to process Telegram webhook", err)
+		h.logger.Error("Failed to process Telegram webhook", 
+			"error", err.Error(),
+		)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
 			Code:    "WEBHOOK_ERROR",
 			Message: "Failed to process webhook",
@@ -299,10 +414,7 @@ func (h *IntegrationHandler) TelegramWebhook(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Webhook processed successfully",
-	})
+	c.Status(http.StatusOK)
 }
 
 // WebchatWebhook godoc

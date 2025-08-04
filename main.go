@@ -11,6 +11,7 @@ import (
 	"github.com/company/microservice-template/internal/config"
 	"github.com/company/microservice-template/internal/handlers"
 	"github.com/company/microservice-template/internal/middleware"
+	"github.com/company/microservice-template/internal/repository"
 	"github.com/company/microservice-template/internal/services"
 	"github.com/company/microservice-template/pkg/logger"
 	"github.com/gin-gonic/gin"
@@ -34,19 +35,35 @@ func main() {
 	// 	logger.Fatal("Failed to initialize Vault client", err)
 	// }
 	
+	// Inicializar conexión a base de datos
+	db, err := repository.NewPostgresDB(
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Name,
+		cfg.Database.SSLMode,
+	)
+	if err != nil {
+		logger.Fatal("Failed to connect to database", err)
+	}
+	defer db.Close()
+	
+	// Inicializar repositorios
+	channelRepo := repository.NewChannelIntegrationRepository(db)
+	inboundRepo := repository.NewInboundMessageRepository(db)
+	outboundRepo := repository.NewOutboundMessageLogRepository(db)
+	
 	// Inicializar servicios
 	healthService := services.NewHealthService()
-	
-	// Servicios de integración (usando mocks para desarrollo inicial)
 	webhookService := services.NewWebhookService(cfg.Integration.MessagingServiceURL, logger)
 	providerService := services.NewMessagingProviderService(logger)
 	
-	// TODO: Inicializar repositorios reales cuando se configure la base de datos
-	// Por ahora usamos servicios sin repositorios para testing
+	// Servicio de integración con repositorios reales
 	integrationService := services.NewIntegrationService(
-		nil, // channelRepo - TODO: implementar
-		nil, // inboundRepo - TODO: implementar  
-		nil, // outboundRepo - TODO: implementar
+		channelRepo,
+		inboundRepo,
+		outboundRepo,
 		webhookService,
 		providerService,
 		logger,

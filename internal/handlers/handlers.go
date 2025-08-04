@@ -49,6 +49,10 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 			// Message sending
 			integrations.POST("/send", integrationHandler.SendMessage)
 			
+			// Chat/Messages endpoints
+			integrations.GET("/messages/inbound", integrationHandler.GetInboundMessages)
+			integrations.GET("/chat/:platform/:user_id", integrationHandler.GetChatHistory)
+			
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")
 			{

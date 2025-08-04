@@ -47,7 +47,12 @@ func (s *integrationService) CreateChannel(ctx context.Context, integration *dom
 
 	if s.channelRepo != nil {
 		if err := s.channelRepo.Create(ctx, integration); err != nil {
-			s.logger.Error("Failed to create channel integration", err)
+			s.logger.Error("Failed to create channel integration", 
+				"error", err.Error(),
+				"integration_id", integration.ID,
+				"tenant_id", integration.TenantID,
+				"platform", integration.Platform,
+			)
 			return fmt.Errorf("failed to create channel integration: %w", err)
 		}
 	}
