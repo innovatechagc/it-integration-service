@@ -239,16 +239,11 @@ func (h *IntegrationHandler) SendMessage(c *gin.Context) {
 // @Router /integrations/messages/inbound [get]
 func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 	platform := c.Query("platform")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	// limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	// offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// Consulta a la base de datos real
-	query := `
-		SELECT id, platform, payload, received_at, processed 
-		FROM inbound_messages 
-		WHERE ($1 = '' OR platform = $1)
-		ORDER BY received_at DESC 
-		LIMIT $2 OFFSET $3`
+	// TODO: Implementar consulta real a la base de datos
+	// query := `SELECT id, platform, payload, received_at, processed FROM inbound_messages WHERE ($1 = '' OR platform = $1) ORDER BY received_at DESC LIMIT $2 OFFSET $3`
 
 	// Por ahora devolvemos datos mock, pero la estructura está lista
 	messages := []map[string]interface{}{
