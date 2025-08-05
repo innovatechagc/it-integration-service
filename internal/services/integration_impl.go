@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/company/microservice-template/internal/domain"
@@ -256,4 +257,174 @@ func (s *integrationService) processWebhook(ctx context.Context, platform domain
 	})
 
 	return nil
+}
+
+// GetInboundMessages obtiene mensajes entrantes con filtros
+func (s *integrationService) GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error) {
+	// Construir query con filtros opcionales
+	query := `SELECT id, platform, payload, received_at, processed 
+			  FROM inbound_messages 
+			  WHERE ($1 = '' OR platform = $1) 
+			  ORDER BY received_at DESC 
+			  LIMIT $2 OFFSET $3`
+	
+	rows, err := s.channelRepo.DB().QueryContext(ctx, query, platform, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inbound messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []*domain.InboundMessage
+	for rows.Next() {
+		var msg domain.InboundMessage
+		if err := rows.Scan(&msg.ID, &msg.Platform, &msg.Payload, &msg.ReceivedAt, &msg.Processed); err != nil {
+			s.logger.Error("Failed to scan inbound message", err)
+			continue
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// GetChatHistory obtiene el historial de conversación con un usuario específico
+func (s *integrationService) GetChatHistory(ctx context.Context, platform, userID string) (*domain.ChatHistory, error) {
+	// Query para obtener mensajes entrantes del usuario
+	inboundQuery := `
+		SELECT id, payload, received_at 
+		FROM inbound_messages 
+		WHERE platform = $1 
+		ORDER BY received_at ASC`
+	
+	// Query para obtener mensajes salientes al usuario
+	outboundQuery := `
+		SELECT id, content, timestamp, status 
+		FROM outbound_message_logs 
+		WHERE recipient = $1 
+		AND channel_id IN (
+			SELECT id FROM channel_integrations WHERE platform = $2
+		)
+		ORDER BY timestamp ASC`
+
+	var messages []domain.ChatMessage
+
+	// Obtener mensajes entrantes
+	rows, err := s.channelRepo.DB().QueryContext(ctx, inboundQuery, platform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query inbound messages: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var payload []byte
+		var receivedAt time.Time
+		
+		if err := rows.Scan(&id, &payload, &receivedAt); err != nil {
+			s.logger.Error("Failed to scan inbound message", err)
+			continue
+		}
+
+		// Extraer texto del payload (simplificado)
+		var payloadData map[string]interface{}
+		if err := json.Unmarshal(payload, &payloadData); err != nil {
+			continue
+		}
+
+		text := extractTextFromPayload(payloadData, domain.Platform(platform))
+		
+		messages = append(messages, domain.ChatMessage{
+			ID:        id,
+			Type:      "inbound",
+			Platform:  domain.Platform(platform),
+			UserID:    userID,
+			Text:      text,
+			Timestamp: receivedAt,
+		})
+	}
+
+	// Obtener mensajes salientes
+	rows, err = s.channelRepo.DB().QueryContext(ctx, outboundQuery, userID, platform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query outbound messages: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var content []byte
+		var timestamp time.Time
+		var status string
+		
+		if err := rows.Scan(&id, &content, &timestamp, &status); err != nil {
+			s.logger.Error("Failed to scan outbound message", err)
+			continue
+		}
+
+		// Extraer texto del contenido
+		var contentData map[string]interface{}
+		if err := json.Unmarshal(content, &contentData); err != nil {
+			continue
+		}
+
+		text := ""
+		if textVal, ok := contentData["text"].(string); ok {
+			text = textVal
+		}
+		
+		messages = append(messages, domain.ChatMessage{
+			ID:        id,
+			Type:      "outbound",
+			Platform:  domain.Platform(platform),
+			UserID:    userID,
+			Text:      text,
+			Timestamp: timestamp,
+			Status:    status,
+		})
+	}
+
+	// Ordenar mensajes por timestamp
+	sort.Slice(messages, func(i, j int) bool {
+		return messages[i].Timestamp.Before(messages[j].Timestamp)
+	})
+
+	return &domain.ChatHistory{
+		Platform:   domain.Platform(platform),
+		UserID:     userID,
+		Messages:   messages,
+		TotalCount: len(messages),
+	}, nil
+}
+
+// Helper function para extraer texto de diferentes formatos de payload
+func extractTextFromPayload(payload map[string]interface{}, platform domain.Platform) string {
+	switch platform {
+	case domain.PlatformWhatsApp:
+		if entry, ok := payload["entry"].([]interface{}); ok && len(entry) > 0 {
+			if entryObj, ok := entry[0].(map[string]interface{}); ok {
+				if changes, ok := entryObj["changes"].([]interface{}); ok && len(changes) > 0 {
+					if changeObj, ok := changes[0].(map[string]interface{}); ok {
+						if value, ok := changeObj["value"].(map[string]interface{}); ok {
+							if messages, ok := value["messages"].([]interface{}); ok && len(messages) > 0 {
+								if msgObj, ok := messages[0].(map[string]interface{}); ok {
+									if text, ok := msgObj["text"].(map[string]interface{}); ok {
+										if body, ok := text["body"].(string); ok {
+											return body
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	case domain.PlatformTelegram:
+		if message, ok := payload["message"].(map[string]interface{}); ok {
+			if text, ok := message["text"].(string); ok {
+				return text
+			}
+		}
+	}
+	return ""
 }

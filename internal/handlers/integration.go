@@ -239,21 +239,18 @@ func (h *IntegrationHandler) SendMessage(c *gin.Context) {
 // @Router /integrations/messages/inbound [get]
 func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 	platform := c.Query("platform")
-	// limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	// offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	// TODO: Implementar consulta real a la base de datos
-	// query := `SELECT id, platform, payload, received_at, processed FROM inbound_messages WHERE ($1 = '' OR platform = $1) ORDER BY received_at DESC LIMIT $2 OFFSET $3`
-
-	// Por ahora devolvemos datos mock, pero la estructura está lista
-	messages := []map[string]interface{}{
-		{
-			"id":          "example-id",
-			"platform":    platform,
-			"payload":     map[string]interface{}{"message": map[string]string{"text": "Ejemplo"}},
-			"received_at": "2025-08-04T14:09:50Z",
-			"processed":   true,
-		},
+	// Obtener mensajes reales de la base de datos
+	messages, err := h.integrationService.GetInboundMessages(c.Request.Context(), platform, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get inbound messages", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "Failed to get inbound messages",
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, domain.APIResponse{
@@ -277,36 +274,21 @@ func (h *IntegrationHandler) GetChatHistory(c *gin.Context) {
 	platform := c.Param("platform")
 	userID := c.Param("user_id")
 
-	// Aquí combinarías inbound y outbound messages para crear la conversación
-	conversation := []map[string]interface{}{
-		{
-			"id":        "msg-1",
-			"type":      "inbound",
-			"platform":  platform,
-			"user_id":   userID,
-			"text":      "/start",
-			"timestamp": "2025-08-04T14:09:50Z",
-		},
-		{
-			"id":        "msg-2", 
-			"type":      "outbound",
-			"platform":  platform,
-			"user_id":   userID,
-			"text":      "¡Hola! 👋 Tu integración está funcionando.",
-			"timestamp": "2025-08-04T14:10:00Z",
-			"status":    "sent",
-		},
+	// Obtener historial real de la base de datos
+	chatHistory, err := h.integrationService.GetChatHistory(c.Request.Context(), platform, userID)
+	if err != nil {
+		h.logger.Error("Failed to get chat history", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "Failed to get chat history",
+		})
+		return
 	}
 
 	c.JSON(http.StatusOK, domain.APIResponse{
 		Code:    "SUCCESS",
 		Message: "Chat history retrieved successfully",
-		Data: map[string]interface{}{
-			"platform":    platform,
-			"user_id":     userID,
-			"messages":    conversation,
-			"total_count": len(conversation),
-		},
+		Data:    chatHistory,
 	})
 }
 

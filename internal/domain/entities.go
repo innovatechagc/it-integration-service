@@ -138,3 +138,22 @@ type HealthStatus struct {
 	Version   string                 `json:"version"`
 	Checks    map[string]interface{} `json:"checks,omitempty"`
 }
+
+// ChatMessage representa un mensaje en una conversación
+type ChatMessage struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"` // "inbound" o "outbound"
+	Platform  Platform  `json:"platform"`
+	UserID    string    `json:"user_id"`
+	Text      string    `json:"text"`
+	Timestamp time.Time `json:"timestamp"`
+	Status    string    `json:"status,omitempty"` // Para mensajes outbound
+}
+
+// ChatHistory representa el historial de conversación con un usuario
+type ChatHistory struct {
+	Platform   Platform      `json:"platform"`
+	UserID     string        `json:"user_id"`
+	Messages   []ChatMessage `json:"messages"`
+	TotalCount int           `json:"total_count"`
+}

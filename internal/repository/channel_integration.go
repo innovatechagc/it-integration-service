@@ -229,3 +229,8 @@ func (r *channelIntegrationRepository) GetByPlatformAndTenant(ctx context.Contex
 
 	return &integration, nil
 }
+
+// DB returns the database connection for direct queries
+func (r *channelIntegrationRepository) DB() *sql.DB {
+	return r.db.DB
+}

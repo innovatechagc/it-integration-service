@@ -25,6 +25,10 @@ type IntegrationService interface {
 	ProcessInstagramWebhook(ctx context.Context, payload []byte, signature string) error
 	ProcessTelegramWebhook(ctx context.Context, payload []byte) error
 	ProcessWebchatWebhook(ctx context.Context, payload []byte) error
+	
+	// Consulta de mensajes
+	GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error)
+	GetChatHistory(ctx context.Context, platform, userID string) (*domain.ChatHistory, error)
 }
 
 // WebhookService define las operaciones para procesamiento de webhooks

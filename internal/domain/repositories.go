@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"database/sql"
+)
 
 // ChannelIntegrationRepository define las operaciones de persistencia para integraciones
 type ChannelIntegrationRepository interface {
@@ -10,6 +13,7 @@ type ChannelIntegrationRepository interface {
 	Update(ctx context.Context, integration *ChannelIntegration) error
 	Delete(ctx context.Context, id string) error
 	GetByPlatformAndTenant(ctx context.Context, platform Platform, tenantID string) (*ChannelIntegration, error)
+	DB() *sql.DB // Para consultas directas
 }
 
 // InboundMessageRepository define las operaciones para mensajes entrantes
