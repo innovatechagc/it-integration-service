@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/company/microservice-template/internal/auth"
+	"it-integration-service/internal/auth"
 	"github.com/gin-gonic/gin"
 )
 

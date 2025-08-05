@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/internal/services"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/internal/services"
+	"it-integration-service/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

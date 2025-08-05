@@ -1,4 +1,4 @@
-module github.com/company/microservice-template
+module it-integration-service
 
 go 1.21
 
@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.4.0
 	github.com/hashicorp/vault/api v1.10.0
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.17.0
 	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/files v1.0.1
@@ -72,7 +73,6 @@ require (
 	github.com/klauspost/compress v1.16.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.4 // indirect
 	github.com/leodido/go-urn v1.2.4 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect

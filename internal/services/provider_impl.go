@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/pkg/logger"
 )
 
 type messagingProviderService struct {

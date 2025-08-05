@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/company/microservice-template/internal/domain"
+	"it-integration-service/internal/domain"
 )
 
 type outboundMessageLogRepository struct {

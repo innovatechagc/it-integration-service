@@ -3,10 +3,10 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/internal/middleware"
-	"github.com/company/microservice-template/internal/services"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/internal/middleware"
+	"it-integration-service/internal/services"
+	"it-integration-service/pkg/logger"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/company/microservice-template/internal/domain"
+	"it-integration-service/internal/domain"
 )
 
 // IntegrationService define las operaciones del servicio de integración

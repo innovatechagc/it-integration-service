@@ -3,7 +3,7 @@ package vault
 import (
 	"fmt"
 
-	"github.com/company/microservice-template/internal/config"
+	"it-integration-service/internal/config"
 	"github.com/hashicorp/vault/api"
 )
 

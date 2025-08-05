@@ -7,8 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/pkg/logger"
+
 	"github.com/google/uuid"
 )
 
@@ -48,7 +49,7 @@ func (s *integrationService) CreateChannel(ctx context.Context, integration *dom
 
 	if s.channelRepo != nil {
 		if err := s.channelRepo.Create(ctx, integration); err != nil {
-			s.logger.Error("Failed to create channel integration", 
+			s.logger.Error("Failed to create channel integration",
 				"error", err.Error(),
 				"integration_id", integration.ID,
 				"tenant_id", integration.TenantID,
@@ -118,7 +119,7 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 	// Obtener la integración del canal
 	var integration *domain.ChannelIntegration
 	var err error
-	
+
 	if s.channelRepo != nil {
 		integration, err = s.channelRepo.GetByID(ctx, request.ChannelID)
 		if err != nil {
@@ -185,7 +186,7 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 	responseBytes, _ := json.Marshal(map[string]interface{}{
 		"error": sendErr,
 	})
-	
+
 	if s.outboundRepo != nil {
 		if err := s.outboundRepo.UpdateStatus(ctx, logEntry.ID, status, responseBytes); err != nil {
 			s.logger.Error("Failed to update outbound message status", err)
@@ -216,6 +217,11 @@ func (s *integrationService) ProcessWebchatWebhook(ctx context.Context, payload 
 }
 
 func (s *integrationService) processWebhook(ctx context.Context, platform domain.Platform, payload []byte, signature string) error {
+	s.logger.Info("Processing webhook", map[string]interface{}{
+		"platform":     platform,
+		"payload_size": len(payload),
+	})
+
 	// Crear registro de mensaje entrante
 	inboundMessage := &domain.InboundMessage{
 		ID:         uuid.New().String(),
@@ -225,20 +231,35 @@ func (s *integrationService) processWebhook(ctx context.Context, platform domain
 		Processed:  false,
 	}
 
+	s.logger.Info("Created inbound message", map[string]interface{}{
+		"message_id": inboundMessage.ID,
+		"platform":   platform,
+	})
+
 	if s.inboundRepo != nil {
 		if err := s.inboundRepo.Create(ctx, inboundMessage); err != nil {
 			s.logger.Error("Failed to create inbound message", err)
+		} else {
+			s.logger.Info("Inbound message saved to database")
 		}
 	}
 
 	// Normalizar mensaje
+	s.logger.Info("Normalizing message...")
 	normalizedMessage, err := s.webhookService.NormalizeMessage(platform, payload)
 	if err != nil {
 		s.logger.Error("Failed to normalize message", err)
 		return fmt.Errorf("failed to normalize message: %w", err)
 	}
 
+	s.logger.Info("Message normalized successfully", map[string]interface{}{
+		"message_id": normalizedMessage.MessageID,
+		"sender":     normalizedMessage.Sender,
+		"text":       normalizedMessage.Content.Text,
+	})
+
 	// Reenviar al messaging service
+	s.logger.Info("Forwarding to messaging service...")
 	if err := s.webhookService.ForwardToMessagingService(ctx, normalizedMessage); err != nil {
 		s.logger.Error("Failed to forward message to messaging service", err)
 		return fmt.Errorf("failed to forward message: %w", err)
@@ -248,6 +269,8 @@ func (s *integrationService) processWebhook(ctx context.Context, platform domain
 	if s.inboundRepo != nil {
 		if err := s.inboundRepo.MarkAsProcessed(ctx, inboundMessage.ID); err != nil {
 			s.logger.Error("Failed to mark message as processed", err)
+		} else {
+			s.logger.Info("Message marked as processed")
 		}
 	}
 
@@ -267,7 +290,7 @@ func (s *integrationService) GetInboundMessages(ctx context.Context, platform st
 			  WHERE ($1 = '' OR platform = $1) 
 			  ORDER BY received_at DESC 
 			  LIMIT $2 OFFSET $3`
-	
+
 	rows, err := s.channelRepo.DB().QueryContext(ctx, query, platform, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query inbound messages: %w", err)
@@ -295,7 +318,7 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		FROM inbound_messages 
 		WHERE platform = $1 
 		ORDER BY received_at ASC`
-	
+
 	// Query para obtener mensajes salientes al usuario
 	outboundQuery := `
 		SELECT id, content, timestamp, status 
@@ -319,7 +342,7 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		var id string
 		var payload []byte
 		var receivedAt time.Time
-		
+
 		if err := rows.Scan(&id, &payload, &receivedAt); err != nil {
 			s.logger.Error("Failed to scan inbound message", err)
 			continue
@@ -332,7 +355,7 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		}
 
 		text := extractTextFromPayload(payloadData, domain.Platform(platform))
-		
+
 		messages = append(messages, domain.ChatMessage{
 			ID:        id,
 			Type:      "inbound",
@@ -355,7 +378,7 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		var content []byte
 		var timestamp time.Time
 		var status string
-		
+
 		if err := rows.Scan(&id, &content, &timestamp, &status); err != nil {
 			s.logger.Error("Failed to scan outbound message", err)
 			continue
@@ -371,7 +394,7 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		if textVal, ok := contentData["text"].(string); ok {
 			text = textVal
 		}
-		
+
 		messages = append(messages, domain.ChatMessage{
 			ID:        id,
 			Type:      "outbound",

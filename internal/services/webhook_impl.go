@@ -1,19 +1,16 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strconv"
-	"time"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/pkg/logger"
 )
 
 type webhookService struct {
@@ -103,13 +100,13 @@ func (s *webhookService) normalizeWhatsAppMessage(payload []byte) (*NormalizedMe
 	}
 
 	return &NormalizedMessage{
-		Platform:    domain.PlatformWhatsApp,
-		Sender:      msg.From,
-		Recipient:   whatsappPayload.Entry[0].Changes[0].Value.Metadata.PhoneNumberID,
-		Content:     content,
-		Timestamp:   timestamp,
-		MessageID:   msg.ID,
-		RawPayload:  payload,
+		Platform:   domain.PlatformWhatsApp,
+		Sender:     msg.From,
+		Recipient:  whatsappPayload.Entry[0].Changes[0].Value.Metadata.PhoneNumberID,
+		Content:    content,
+		Timestamp:  timestamp,
+		MessageID:  msg.ID,
+		RawPayload: payload,
 	}, nil
 }
 
@@ -148,13 +145,13 @@ func (s *webhookService) normalizeMessengerMessage(payload []byte) (*NormalizedM
 	}
 
 	return &NormalizedMessage{
-		Platform:    domain.PlatformMessenger,
-		Sender:      msg.Sender.ID,
-		Recipient:   msg.Recipient.ID,
-		Content:     content,
-		Timestamp:   msg.Timestamp,
-		MessageID:   msg.Message.Mid,
-		RawPayload:  payload,
+		Platform:   domain.PlatformMessenger,
+		Sender:     msg.Sender.ID,
+		Recipient:  msg.Recipient.ID,
+		Content:    content,
+		Timestamp:  msg.Timestamp,
+		MessageID:  msg.Message.Mid,
+		RawPayload: payload,
 	}, nil
 }
 
@@ -194,13 +191,13 @@ func (s *webhookService) normalizeTelegramMessage(payload []byte) (*NormalizedMe
 	}
 
 	return &NormalizedMessage{
-		Platform:    domain.PlatformTelegram,
-		Sender:      strconv.FormatInt(telegramPayload.Message.From.ID, 10),
-		Recipient:   strconv.FormatInt(telegramPayload.Message.Chat.ID, 10),
-		Content:     content,
-		Timestamp:   telegramPayload.Message.Date,
-		MessageID:   strconv.FormatInt(telegramPayload.Message.MessageID, 10),
-		RawPayload:  payload,
+		Platform:   domain.PlatformTelegram,
+		Sender:     strconv.FormatInt(telegramPayload.Message.From.ID, 10),
+		Recipient:  strconv.FormatInt(telegramPayload.Message.Chat.ID, 10),
+		Content:    content,
+		Timestamp:  telegramPayload.Message.Date,
+		MessageID:  strconv.FormatInt(telegramPayload.Message.MessageID, 10),
+		RawPayload: payload,
 	}, nil
 }
 
@@ -223,13 +220,13 @@ func (s *webhookService) normalizeWebchatMessage(payload []byte) (*NormalizedMes
 	}
 
 	return &NormalizedMessage{
-		Platform:    domain.PlatformWebchat,
-		Sender:      webchatPayload.UserID,
-		Recipient:   webchatPayload.SessionID,
-		Content:     content,
-		Timestamp:   webchatPayload.Timestamp,
-		MessageID:   webchatPayload.MessageID,
-		RawPayload:  payload,
+		Platform:   domain.PlatformWebchat,
+		Sender:     webchatPayload.UserID,
+		Recipient:  webchatPayload.SessionID,
+		Content:    content,
+		Timestamp:  webchatPayload.Timestamp,
+		MessageID:  webchatPayload.MessageID,
+		RawPayload: payload,
 	}, nil
 }
 
@@ -239,32 +236,12 @@ func (s *webhookService) ForwardToMessagingService(ctx context.Context, message 
 		return nil
 	}
 
-	jsonData, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("failed to marshal message: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", s.messagingServiceURL+"/api/v1/messages/inbound", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("messaging service returned error: %d", resp.StatusCode)
-	}
-
-	s.logger.Info("Message forwarded to messaging service", map[string]interface{}{
+	// Para desarrollo, solo loggear el mensaje
+	s.logger.Info("Message received (development mode)", map[string]interface{}{
 		"message_id": message.MessageID,
 		"platform":   message.Platform,
+		"sender":     message.Sender,
+		"text":       message.Content.Text,
 	})
 
 	return nil

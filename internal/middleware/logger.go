@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/company/microservice-template/internal/domain"
+	"it-integration-service/internal/domain"
 )
 
 type channelIntegrationRepository struct {

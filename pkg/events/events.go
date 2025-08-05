@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/pkg/logger"
 )
 
 // Event representa un evento del sistema

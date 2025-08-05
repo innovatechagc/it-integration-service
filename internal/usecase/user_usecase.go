@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/company/microservice-template/internal/domain"
-	"github.com/company/microservice-template/pkg/logger"
+	"it-integration-service/internal/domain"
+	"it-integration-service/pkg/logger"
 )
 
 type UserUseCase interface {
