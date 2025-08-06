@@ -225,6 +225,42 @@ func (h *IntegrationHandler) SendMessage(c *gin.Context) {
 	})
 }
 
+// BroadcastMessage godoc
+// @Summary Enviar mensaje masivo
+// @Description Envía un mensaje a múltiples destinatarios en diferentes canales
+// @Tags integrations
+// @Accept json
+// @Produce json
+// @Param request body domain.BroadcastMessageRequest true "Datos del mensaje masivo"
+// @Success 200 {object} domain.APIResponse
+// @Router /integrations/broadcast [post]
+func (h *IntegrationHandler) BroadcastMessage(c *gin.Context) {
+	var request domain.BroadcastMessageRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	results, err := h.integrationService.BroadcastMessage(c.Request.Context(), &request)
+	if err != nil {
+		h.logger.Error("Failed to broadcast message", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "BROADCAST_ERROR",
+			Message: "Failed to broadcast message: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Broadcast completed",
+		Data:    results,
+	})
+}
+
 // Chat/Messages endpoints
 
 // GetInboundMessages godoc
@@ -256,6 +292,38 @@ func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, domain.APIResponse{
 		Code:    "SUCCESS",
 		Message: "Messages retrieved successfully",
+		Data:    messages,
+	})
+}
+
+// GetOutboundMessages godoc
+// @Summary Obtener mensajes salientes
+// @Description Obtiene el historial de mensajes enviados por plataforma
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Param platform query string false "Filtrar por plataforma"
+// @Param limit query int false "Límite de mensajes (default: 50)"
+// @Success 200 {object} domain.APIResponse
+// @Router /integrations/messages/outbound [get]
+func (h *IntegrationHandler) GetOutboundMessages(c *gin.Context) {
+	platform := c.Query("platform")
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	messages, err := h.integrationService.GetOutboundMessages(c.Request.Context(), platform, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to get outbound messages", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "INTERNAL_ERROR",
+			Message: "Failed to get outbound messages",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Outbound messages retrieved successfully",
 		Data:    messages,
 	})
 }

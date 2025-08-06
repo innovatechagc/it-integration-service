@@ -157,3 +157,27 @@ type ChatHistory struct {
 	Messages   []ChatMessage `json:"messages"`
 	TotalCount int           `json:"total_count"`
 }
+
+// BroadcastMessageRequest representa una solicitud de mensaje masivo
+type BroadcastMessageRequest struct {
+	TenantID   string         `json:"tenant_id" binding:"required"`
+	Platforms  []Platform     `json:"platforms" binding:"required"`
+	Recipients []string       `json:"recipients" binding:"required"`
+	Content    MessageContent `json:"content" binding:"required"`
+}
+
+// BroadcastResult representa el resultado de un envío masivo
+type BroadcastResult struct {
+	TotalSent    int                    `json:"total_sent"`
+	TotalFailed  int                    `json:"total_failed"`
+	Results      []BroadcastItemResult  `json:"results"`
+}
+
+// BroadcastItemResult representa el resultado de un envío individual
+type BroadcastItemResult struct {
+	Platform  Platform `json:"platform"`
+	Recipient string   `json:"recipient"`
+	Success   bool     `json:"success"`
+	Error     string   `json:"error,omitempty"`
+	MessageID string   `json:"message_id,omitempty"`
+}

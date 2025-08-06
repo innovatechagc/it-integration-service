@@ -25,6 +25,13 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 
 	// Integration handler
 	integrationHandler := NewIntegrationHandler(integrationService, logger)
+	
+	// Setup handlers para configuración específica de plataformas
+	telegramSetupService := services.NewTelegramSetupService(logger)
+	telegramSetupHandler := NewTelegramSetupHandler(telegramSetupService, integrationService, logger)
+	
+	whatsappSetupService := services.NewWhatsAppSetupService(logger)
+	whatsappSetupHandler := NewWhatsAppSetupHandler(whatsappSetupService, integrationService, logger)
 
 	// Swagger documentation (protegido en producción)
 	router.GET("/swagger/*any", middleware.SwaggerAuth(), ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -48,10 +55,32 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 			
 			// Message sending
 			integrations.POST("/send", integrationHandler.SendMessage)
+			integrations.POST("/broadcast", integrationHandler.BroadcastMessage)
 			
 			// Chat/Messages endpoints
 			integrations.GET("/messages/inbound", integrationHandler.GetInboundMessages)
+			integrations.GET("/messages/outbound", integrationHandler.GetOutboundMessages)
 			integrations.GET("/chat/:platform/:user_id", integrationHandler.GetChatHistory)
+			
+			// Platform-specific setup routes
+			telegram := integrations.Group("/telegram")
+			{
+				telegram.GET("/bot-info", telegramSetupHandler.GetBotInfo)
+				telegram.POST("/setup", telegramSetupHandler.SetupTelegramIntegration)
+				telegram.GET("/webhook-info", telegramSetupHandler.GetWebhookInfo)
+				telegram.POST("/webhook", telegramSetupHandler.SetWebhook)
+				telegram.DELETE("/webhook", telegramSetupHandler.DeleteWebhook)
+				telegram.POST("/test-message", telegramSetupHandler.TestMessage)
+			}
+			
+			whatsapp := integrations.Group("/whatsapp")
+			{
+				whatsapp.GET("/business-info", whatsappSetupHandler.GetBusinessInfo)
+				whatsapp.GET("/phone-info", whatsappSetupHandler.GetPhoneNumberInfo)
+				whatsapp.POST("/setup", whatsappSetupHandler.SetupWhatsAppIntegration)
+				whatsapp.POST("/test-message", whatsappSetupHandler.TestMessage)
+				whatsapp.GET("/webhook-verify", whatsappSetupHandler.ValidateWebhook)
+			}
 			
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")

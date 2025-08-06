@@ -28,7 +28,11 @@ type IntegrationService interface {
 	
 	// Consulta de mensajes
 	GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error)
+	GetOutboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.OutboundMessageLog, error)
 	GetChatHistory(ctx context.Context, platform, userID string) (*domain.ChatHistory, error)
+	
+	// Envío masivo
+	BroadcastMessage(ctx context.Context, request *domain.BroadcastMessageRequest) (*domain.BroadcastResult, error)
 }
 
 // WebhookService define las operaciones para procesamiento de webhooks

@@ -141,6 +141,15 @@ health: ## Verificar health check
 	@echo "❤️ Verificando health check..."
 	curl -f http://localhost:8080/api/v1/health || echo "Servicio no disponible"
 
+test-endpoints: ## Probar todos los endpoints
+	@echo "🔍 Probando endpoints..."
+	@if pgrep -f "integration-service" > /dev/null || curl -s http://localhost:8080/api/v1/health > /dev/null 2>&1; then \
+		chmod +x scripts/test-endpoints.sh; \
+		./scripts/test-endpoints.sh; \
+	else \
+		echo "❌ El servicio no está corriendo. Ejecuta 'make dev' o 'make dev-simple' primero."; \
+	fi
+
 status: ## Ver estado de los servicios
 	@echo "📊 Estado de los servicios:"
 	docker-compose -f docker-compose.yml ps

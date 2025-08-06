@@ -116,6 +116,11 @@ func (s *integrationService) DeleteChannel(ctx context.Context, id string) error
 }
 
 func (s *integrationService) SendMessage(ctx context.Context, request *domain.SendMessageRequest) error {
+	s.logger.Info("SendMessage called", map[string]interface{}{
+		"channel_id": request.ChannelID,
+		"recipient":  request.Recipient,
+	})
+
 	// Obtener la integración del canal
 	var integration *domain.ChannelIntegration
 	var err error
@@ -123,8 +128,13 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 	if s.channelRepo != nil {
 		integration, err = s.channelRepo.GetByID(ctx, request.ChannelID)
 		if err != nil {
+			s.logger.Error("Failed to get channel integration", err)
 			return fmt.Errorf("failed to get channel integration: %w", err)
 		}
+		s.logger.Info("Channel integration found", map[string]interface{}{
+			"platform": integration.Platform,
+			"status":   integration.Status,
+		})
 	} else {
 		// Mock integration for development
 		integration = &domain.ChannelIntegration{
@@ -135,9 +145,11 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 			Status:   domain.StatusActive,
 			Config:   []byte(`{"phone_number_id": "mock-phone"}`),
 		}
+		s.logger.Info("Using mock integration")
 	}
 
 	if integration.Status != domain.StatusActive {
+		s.logger.Error("Channel integration is not active", fmt.Errorf("status: %s", integration.Status))
 		return fmt.Errorf("channel integration is not active")
 	}
 
@@ -153,10 +165,22 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 	contentBytes, _ := json.Marshal(request.Content)
 	logEntry.Content = contentBytes
 
+	s.logger.Info("Creating outbound message log", map[string]interface{}{
+		"log_id":     logEntry.ID,
+		"channel_id": logEntry.ChannelID,
+		"recipient":  logEntry.Recipient,
+	})
+
 	if s.outboundRepo != nil {
 		if err := s.outboundRepo.Create(ctx, logEntry); err != nil {
 			s.logger.Error("Failed to create outbound message log", err)
+		} else {
+			s.logger.Info("Outbound message log created successfully", map[string]interface{}{
+				"log_id": logEntry.ID,
+			})
 		}
+	} else {
+		s.logger.Warn("Outbound repository is nil, cannot create log")
 	}
 
 	// Enviar mensaje según la plataforma
@@ -284,6 +308,19 @@ func (s *integrationService) processWebhook(ctx context.Context, platform domain
 
 // GetInboundMessages obtiene mensajes entrantes con filtros
 func (s *integrationService) GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error) {
+	if s.channelRepo == nil {
+		// Mock response for development
+		return []*domain.InboundMessage{
+			{
+				ID:         "mock-inbound-1",
+				Platform:   domain.Platform(platform),
+				Payload:    []byte(`{"message": {"text": "Mensaje de prueba mock"}}`),
+				ReceivedAt: time.Now().Add(-2 * time.Hour),
+				Processed:  true,
+			},
+		}, nil
+	}
+
 	// Construir query con filtros opcionales
 	query := `SELECT id, platform, payload, received_at, processed 
 			  FROM inbound_messages 
@@ -417,6 +454,130 @@ func (s *integrationService) GetChatHistory(ctx context.Context, platform, userI
 		Messages:   messages,
 		TotalCount: len(messages),
 	}, nil
+}
+
+// GetOutboundMessages obtiene mensajes salientes con filtros
+func (s *integrationService) GetOutboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.OutboundMessageLog, error) {
+	if s.outboundRepo == nil {
+		// Mock response for development
+		return []*domain.OutboundMessageLog{
+			{
+				ID:        "mock-outbound-1",
+				ChannelID: "mock-channel-1",
+				Recipient: "573001234567",
+				Status:    domain.MessageStatusSent,
+				Timestamp: time.Now().Add(-1 * time.Hour),
+			},
+		}, nil
+	}
+
+	// Construir query con filtros opcionales
+	query := `SELECT id, channel_id, recipient, content, status, response, timestamp 
+			  FROM outbound_message_logs 
+			  WHERE ($1 = '' OR channel_id IN (
+				  SELECT id FROM channel_integrations WHERE platform = $1
+			  ))
+			  ORDER BY timestamp DESC 
+			  LIMIT $2 OFFSET $3`
+
+	rows, err := s.channelRepo.DB().QueryContext(ctx, query, platform, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query outbound messages: %w", err)
+	}
+	defer rows.Close()
+
+	var messages []*domain.OutboundMessageLog
+	for rows.Next() {
+		var msg domain.OutboundMessageLog
+		if err := rows.Scan(&msg.ID, &msg.ChannelID, &msg.Recipient, &msg.Content, &msg.Status, &msg.Response, &msg.Timestamp); err != nil {
+			s.logger.Error("Failed to scan outbound message", err)
+			continue
+		}
+		messages = append(messages, &msg)
+	}
+
+	return messages, nil
+}
+
+// BroadcastMessage envía un mensaje a múltiples destinatarios en diferentes plataformas
+func (s *integrationService) BroadcastMessage(ctx context.Context, request *domain.BroadcastMessageRequest) (*domain.BroadcastResult, error) {
+	result := &domain.BroadcastResult{
+		Results: make([]domain.BroadcastItemResult, 0),
+	}
+
+	// Obtener integraciones activas para el tenant y las plataformas solicitadas
+	channels, err := s.GetChannelsByTenant(ctx, request.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get channels: %w", err)
+	}
+
+	// Filtrar canales por plataformas solicitadas
+	platformChannels := make(map[domain.Platform]*domain.ChannelIntegration)
+	for _, channel := range channels {
+		if channel.Status != domain.StatusActive {
+			continue
+		}
+		for _, platform := range request.Platforms {
+			if channel.Platform == platform {
+				platformChannels[platform] = channel
+				break
+			}
+		}
+	}
+
+	// Enviar mensaje a cada destinatario
+	for _, recipient := range request.Recipients {
+		for _, platform := range request.Platforms {
+			channel, exists := platformChannels[platform]
+			if !exists {
+				result.Results = append(result.Results, domain.BroadcastItemResult{
+					Platform:  platform,
+					Recipient: recipient,
+					Success:   false,
+					Error:     fmt.Sprintf("No active channel found for platform %s", platform),
+				})
+				result.TotalFailed++
+				continue
+			}
+
+			// Crear solicitud de envío individual
+			sendRequest := &domain.SendMessageRequest{
+				ChannelID: channel.ID,
+				Recipient: recipient,
+				Content:   request.Content,
+			}
+
+			// Enviar mensaje
+			err := s.SendMessage(ctx, sendRequest)
+			if err != nil {
+				result.Results = append(result.Results, domain.BroadcastItemResult{
+					Platform:  platform,
+					Recipient: recipient,
+					Success:   false,
+					Error:     err.Error(),
+				})
+				result.TotalFailed++
+			} else {
+				result.Results = append(result.Results, domain.BroadcastItemResult{
+					Platform:  platform,
+					Recipient: recipient,
+					Success:   true,
+					MessageID: fmt.Sprintf("broadcast-%s-%s", platform, recipient),
+				})
+				result.TotalSent++
+			}
+		}
+	}
+
+	s.logger.Info("Broadcast completed", map[string]interface{}{
+		"tenant_id":    request.TenantID,
+		"total_sent":   result.TotalSent,
+		"total_failed": result.TotalFailed,
+		"platforms":    request.Platforms,
+		"recipients":   len(request.Recipients),
+	})
+
+	return result, nil
 }
 
 // Helper function para extraer texto de diferentes formatos de payload
