@@ -18,8 +18,8 @@ dev: ## Iniciar entorno de desarrollo con hot reload
 
 dev-simple: ## Ejecutar aplicación directamente (sin Docker)
 	@echo "🚀 Ejecutando aplicación localmente..."
-	@echo "Usando base de datos externa configurada en .env.local"
-	go run main.go
+	@echo "Modo desarrollo: usando mocks, sin base de datos"
+	go run main-dev.go
 
 dev-test: ## Iniciar entorno de testing
 	@echo "🧪 Iniciando entorno de testing..."
