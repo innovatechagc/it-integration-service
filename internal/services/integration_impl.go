@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"time"
 
 	"it-integration-service/internal/domain"
@@ -14,11 +13,12 @@ import (
 )
 
 type integrationService struct {
-	channelRepo     domain.ChannelIntegrationRepository
-	inboundRepo     domain.InboundMessageRepository
-	outboundRepo    domain.OutboundMessageLogRepository
+	channelService  ChannelService
+	queryService    QueryService
 	webhookService  WebhookService
 	providerService MessagingProviderService
+	inboundRepo     domain.InboundMessageRepository
+	outboundRepo    domain.OutboundMessageLogRepository
 	logger          logger.Logger
 }
 
@@ -31,88 +31,38 @@ func NewIntegrationService(
 	providerService MessagingProviderService,
 	logger logger.Logger,
 ) IntegrationService {
+	channelService := NewChannelService(channelRepo, logger)
+	queryService := NewQueryService(channelRepo, inboundRepo, outboundRepo, logger)
+
 	return &integrationService{
-		channelRepo:     channelRepo,
-		inboundRepo:     inboundRepo,
-		outboundRepo:    outboundRepo,
+		channelService:  channelService,
+		queryService:    queryService,
 		webhookService:  webhookService,
 		providerService: providerService,
+		inboundRepo:     inboundRepo,
+		outboundRepo:    outboundRepo,
 		logger:          logger,
 	}
 }
 
 func (s *integrationService) CreateChannel(ctx context.Context, integration *domain.ChannelIntegration) error {
-	integration.ID = uuid.New().String()
-	integration.CreatedAt = time.Now()
-	integration.UpdatedAt = time.Now()
-	integration.Status = domain.StatusActive
-
-	if s.channelRepo != nil {
-		if err := s.channelRepo.Create(ctx, integration); err != nil {
-			s.logger.Error("Failed to create channel integration",
-				"error", err.Error(),
-				"integration_id", integration.ID,
-				"tenant_id", integration.TenantID,
-				"platform", integration.Platform,
-			)
-			return fmt.Errorf("failed to create channel integration: %w", err)
-		}
-	}
-
-	s.logger.Info("Channel integration created", map[string]interface{}{
-		"id":       integration.ID,
-		"platform": integration.Platform,
-		"tenant":   integration.TenantID,
-	})
-
-	return nil
+	return s.channelService.CreateChannel(ctx, integration)
 }
 
 func (s *integrationService) GetChannel(ctx context.Context, id string) (*domain.ChannelIntegration, error) {
-	if s.channelRepo == nil {
-		// Mock response for development
-		return &domain.ChannelIntegration{
-			ID:       id,
-			TenantID: "mock-tenant",
-			Platform: domain.PlatformWhatsApp,
-			Provider: domain.ProviderMeta,
-			Status:   domain.StatusActive,
-		}, nil
-	}
-	return s.channelRepo.GetByID(ctx, id)
+	return s.channelService.GetChannel(ctx, id)
 }
 
 func (s *integrationService) GetChannelsByTenant(ctx context.Context, tenantID string) ([]*domain.ChannelIntegration, error) {
-	if s.channelRepo == nil {
-		// Mock response for development
-		return []*domain.ChannelIntegration{
-			{
-				ID:       "mock-channel-1",
-				TenantID: tenantID,
-				Platform: domain.PlatformWhatsApp,
-				Provider: domain.ProviderMeta,
-				Status:   domain.StatusActive,
-			},
-		}, nil
-	}
-	return s.channelRepo.GetByTenantID(ctx, tenantID)
+	return s.channelService.GetChannelsByTenant(ctx, tenantID)
 }
 
 func (s *integrationService) UpdateChannel(ctx context.Context, integration *domain.ChannelIntegration) error {
-	integration.UpdatedAt = time.Now()
-	if s.channelRepo == nil {
-		s.logger.Info("Mock: Channel updated", map[string]interface{}{"id": integration.ID})
-		return nil
-	}
-	return s.channelRepo.Update(ctx, integration)
+	return s.channelService.UpdateChannel(ctx, integration)
 }
 
 func (s *integrationService) DeleteChannel(ctx context.Context, id string) error {
-	if s.channelRepo == nil {
-		s.logger.Info("Mock: Channel deleted", map[string]interface{}{"id": id})
-		return nil
-	}
-	return s.channelRepo.Delete(ctx, id)
+	return s.channelService.DeleteChannel(ctx, id)
 }
 
 func (s *integrationService) SendMessage(ctx context.Context, request *domain.SendMessageRequest) error {
@@ -122,31 +72,16 @@ func (s *integrationService) SendMessage(ctx context.Context, request *domain.Se
 	})
 
 	// Obtener la integración del canal
-	var integration *domain.ChannelIntegration
-	var err error
-
-	if s.channelRepo != nil {
-		integration, err = s.channelRepo.GetByID(ctx, request.ChannelID)
-		if err != nil {
-			s.logger.Error("Failed to get channel integration", err)
-			return fmt.Errorf("failed to get channel integration: %w", err)
-		}
-		s.logger.Info("Channel integration found", map[string]interface{}{
-			"platform": integration.Platform,
-			"status":   integration.Status,
-		})
-	} else {
-		// Mock integration for development
-		integration = &domain.ChannelIntegration{
-			ID:       request.ChannelID,
-			TenantID: "mock-tenant",
-			Platform: domain.PlatformWhatsApp,
-			Provider: domain.ProviderMeta,
-			Status:   domain.StatusActive,
-			Config:   []byte(`{"phone_number_id": "mock-phone"}`),
-		}
-		s.logger.Info("Using mock integration")
+	integration, err := s.channelService.GetChannel(ctx, request.ChannelID)
+	if err != nil {
+		s.logger.Error("Failed to get channel integration", err)
+		return fmt.Errorf("failed to get channel integration: %w", err)
 	}
+
+	s.logger.Info("Channel integration found", map[string]interface{}{
+		"platform": integration.Platform,
+		"status":   integration.Status,
+	})
 
 	if integration.Status != domain.StatusActive {
 		s.logger.Error("Channel integration is not active", fmt.Errorf("status: %s", integration.Status))
@@ -308,195 +243,17 @@ func (s *integrationService) processWebhook(ctx context.Context, platform domain
 
 // GetInboundMessages obtiene mensajes entrantes con filtros
 func (s *integrationService) GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error) {
-	if s.channelRepo == nil {
-		// Mock response for development
-		return []*domain.InboundMessage{
-			{
-				ID:         "mock-inbound-1",
-				Platform:   domain.Platform(platform),
-				Payload:    []byte(`{"message": {"text": "Mensaje de prueba mock"}}`),
-				ReceivedAt: time.Now().Add(-2 * time.Hour),
-				Processed:  true,
-			},
-		}, nil
-	}
-
-	// Construir query con filtros opcionales
-	query := `SELECT id, platform, payload, received_at, processed 
-			  FROM inbound_messages 
-			  WHERE ($1 = '' OR platform = $1) 
-			  ORDER BY received_at DESC 
-			  LIMIT $2 OFFSET $3`
-
-	rows, err := s.channelRepo.DB().QueryContext(ctx, query, platform, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inbound messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []*domain.InboundMessage
-	for rows.Next() {
-		var msg domain.InboundMessage
-		if err := rows.Scan(&msg.ID, &msg.Platform, &msg.Payload, &msg.ReceivedAt, &msg.Processed); err != nil {
-			s.logger.Error("Failed to scan inbound message", err)
-			continue
-		}
-		messages = append(messages, &msg)
-	}
-
-	return messages, nil
+	return s.queryService.GetInboundMessages(ctx, platform, limit, offset)
 }
 
 // GetChatHistory obtiene el historial de conversación con un usuario específico
 func (s *integrationService) GetChatHistory(ctx context.Context, platform, userID string) (*domain.ChatHistory, error) {
-	// Query para obtener mensajes entrantes del usuario
-	inboundQuery := `
-		SELECT id, payload, received_at 
-		FROM inbound_messages 
-		WHERE platform = $1 
-		ORDER BY received_at ASC`
-
-	// Query para obtener mensajes salientes al usuario
-	outboundQuery := `
-		SELECT id, content, timestamp, status 
-		FROM outbound_message_logs 
-		WHERE recipient = $1 
-		AND channel_id IN (
-			SELECT id FROM channel_integrations WHERE platform = $2
-		)
-		ORDER BY timestamp ASC`
-
-	var messages []domain.ChatMessage
-
-	// Obtener mensajes entrantes
-	rows, err := s.channelRepo.DB().QueryContext(ctx, inboundQuery, platform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query inbound messages: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var id string
-		var payload []byte
-		var receivedAt time.Time
-
-		if err := rows.Scan(&id, &payload, &receivedAt); err != nil {
-			s.logger.Error("Failed to scan inbound message", err)
-			continue
-		}
-
-		// Extraer texto del payload (simplificado)
-		var payloadData map[string]interface{}
-		if err := json.Unmarshal(payload, &payloadData); err != nil {
-			continue
-		}
-
-		text := extractTextFromPayload(payloadData, domain.Platform(platform))
-
-		messages = append(messages, domain.ChatMessage{
-			ID:        id,
-			Type:      "inbound",
-			Platform:  domain.Platform(platform),
-			UserID:    userID,
-			Text:      text,
-			Timestamp: receivedAt,
-		})
-	}
-
-	// Obtener mensajes salientes
-	rows, err = s.channelRepo.DB().QueryContext(ctx, outboundQuery, userID, platform)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query outbound messages: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var id string
-		var content []byte
-		var timestamp time.Time
-		var status string
-
-		if err := rows.Scan(&id, &content, &timestamp, &status); err != nil {
-			s.logger.Error("Failed to scan outbound message", err)
-			continue
-		}
-
-		// Extraer texto del contenido
-		var contentData map[string]interface{}
-		if err := json.Unmarshal(content, &contentData); err != nil {
-			continue
-		}
-
-		text := ""
-		if textVal, ok := contentData["text"].(string); ok {
-			text = textVal
-		}
-
-		messages = append(messages, domain.ChatMessage{
-			ID:        id,
-			Type:      "outbound",
-			Platform:  domain.Platform(platform),
-			UserID:    userID,
-			Text:      text,
-			Timestamp: timestamp,
-			Status:    status,
-		})
-	}
-
-	// Ordenar mensajes por timestamp
-	sort.Slice(messages, func(i, j int) bool {
-		return messages[i].Timestamp.Before(messages[j].Timestamp)
-	})
-
-	return &domain.ChatHistory{
-		Platform:   domain.Platform(platform),
-		UserID:     userID,
-		Messages:   messages,
-		TotalCount: len(messages),
-	}, nil
+	return s.queryService.GetChatHistory(ctx, platform, userID)
 }
 
 // GetOutboundMessages obtiene mensajes salientes con filtros
 func (s *integrationService) GetOutboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.OutboundMessageLog, error) {
-	if s.outboundRepo == nil {
-		// Mock response for development
-		return []*domain.OutboundMessageLog{
-			{
-				ID:        "mock-outbound-1",
-				ChannelID: "mock-channel-1",
-				Recipient: "573001234567",
-				Status:    domain.MessageStatusSent,
-				Timestamp: time.Now().Add(-1 * time.Hour),
-			},
-		}, nil
-	}
-
-	// Construir query con filtros opcionales
-	query := `SELECT id, channel_id, recipient, content, status, response, timestamp 
-			  FROM outbound_message_logs 
-			  WHERE ($1 = '' OR channel_id IN (
-				  SELECT id FROM channel_integrations WHERE platform = $1
-			  ))
-			  ORDER BY timestamp DESC 
-			  LIMIT $2 OFFSET $3`
-
-	rows, err := s.channelRepo.DB().QueryContext(ctx, query, platform, limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query outbound messages: %w", err)
-	}
-	defer rows.Close()
-
-	var messages []*domain.OutboundMessageLog
-	for rows.Next() {
-		var msg domain.OutboundMessageLog
-		if err := rows.Scan(&msg.ID, &msg.ChannelID, &msg.Recipient, &msg.Content, &msg.Status, &msg.Response, &msg.Timestamp); err != nil {
-			s.logger.Error("Failed to scan outbound message", err)
-			continue
-		}
-		messages = append(messages, &msg)
-	}
-
-	return messages, nil
+	return s.queryService.GetOutboundMessages(ctx, platform, limit, offset)
 }
 
 // BroadcastMessage envía un mensaje a múltiples destinatarios en diferentes plataformas
@@ -506,7 +263,7 @@ func (s *integrationService) BroadcastMessage(ctx context.Context, request *doma
 	}
 
 	// Obtener integraciones activas para el tenant y las plataformas solicitadas
-	channels, err := s.GetChannelsByTenant(ctx, request.TenantID)
+	channels, err := s.channelService.GetChannelsByTenant(ctx, request.TenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get channels: %w", err)
 	}

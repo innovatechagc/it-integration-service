@@ -2,8 +2,6 @@ package featureflags
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"sync"
 	"time"
 
@@ -12,12 +10,12 @@ import (
 
 // FeatureFlag representa una feature flag
 type FeatureFlag struct {
-	Key         string                 `json:"key"`
-	Enabled     bool                   `json:"enabled"`
-	Percentage  int                    `json:"percentage"` // 0-100
-	Rules       []Rule                 `json:"rules"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	UpdatedAt   time.Time              `json:"updated_at"`
+	Key        string                 `json:"key"`
+	Enabled    bool                   `json:"enabled"`
+	Percentage int                    `json:"percentage"` // 0-100
+	Rules      []Rule                 `json:"rules"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	UpdatedAt  time.Time              `json:"updated_at"`
 }
 
 // Rule representa una regla de feature flag
@@ -54,30 +52,30 @@ func NewInMemoryClient(logger logger.Logger) Client {
 		flags:  make(map[string]FeatureFlag),
 		logger: logger,
 	}
-	
+
 	// Flags por defecto para desarrollo
 	client.setDefaultFlags()
-	
+
 	return client
 }
 
 func (c *InMemoryClient) setDefaultFlags() {
 	defaultFlags := []FeatureFlag{
 		{
-			Key:       "new_user_onboarding",
-			Enabled:   true,
+			Key:        "new_user_onboarding",
+			Enabled:    true,
 			Percentage: 100,
-			UpdatedAt: time.Now(),
+			UpdatedAt:  time.Now(),
 		},
 		{
-			Key:       "advanced_analytics",
-			Enabled:   false,
+			Key:        "advanced_analytics",
+			Enabled:    false,
 			Percentage: 0,
-			UpdatedAt: time.Now(),
+			UpdatedAt:  time.Now(),
 		},
 		{
-			Key:       "beta_features",
-			Enabled:   true,
+			Key:        "beta_features",
+			Enabled:    true,
 			Percentage: 10, // Solo 10% de usuarios
 			Rules: []Rule{
 				{
@@ -92,7 +90,7 @@ func (c *InMemoryClient) setDefaultFlags() {
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	for _, flag := range defaultFlags {
 		c.flags[flag.Key] = flag
 	}
@@ -151,7 +149,7 @@ func (c *InMemoryClient) GetVariation(ctx context.Context, flagKey string, evalC
 func (c *InMemoryClient) evaluateRules(rules []Rule, evalCtx Context) bool {
 	for _, rule := range rules {
 		var value interface{}
-		
+
 		// Obtener valor del contexto
 		switch rule.Attribute {
 		case "user_id":
@@ -205,11 +203,11 @@ func (c *InMemoryClient) evaluatePercentage(flagKey, userID string, percentage i
 	for _, char := range flagKey + userID {
 		hash = hash*31 + int(char)
 	}
-	
+
 	if hash < 0 {
 		hash = -hash
 	}
-	
+
 	return (hash % 100) < percentage
 }
 
@@ -249,7 +247,7 @@ func NewLaunchDarklyClient(sdkKey string, logger logger.Logger) (Client, error) 
 func (c *LaunchDarklyClient) IsEnabled(ctx context.Context, flagKey string, evalCtx Context) bool {
 	user := lduser.NewUser(evalCtx.UserID).
 		Email(evalCtx.Email)
-	
+
 	for key, value := range evalCtx.Attributes {
 		user = user.Custom(key, ldvalue.String(fmt.Sprintf("%v", value)))
 	}

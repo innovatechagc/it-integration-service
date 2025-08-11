@@ -46,19 +46,7 @@ type MessengerWebhookSubscription struct {
 	Fields []string `json:"fields"`
 }
 
-// FacebookAPIResponse representa una respuesta de la API de Facebook
-type FacebookAPIResponse struct {
-	Data  json.RawMessage    `json:"data,omitempty"`
-	Error *FacebookAPIError  `json:"error,omitempty"`
-}
 
-// FacebookAPIError representa un error de la API de Facebook
-type FacebookAPIError struct {
-	Message   string `json:"message"`
-	Type      string `json:"type"`
-	Code      int    `json:"code"`
-	ErrorSubcode int `json:"error_subcode,omitempty"`
-}
 
 // GetPageInfo obtiene información de la página de Facebook
 func (s *MessengerSetupService) GetPageInfo(ctx context.Context, pageAccessToken, pageID string) (*MessengerPageInfo, error) {
@@ -83,7 +71,7 @@ func (s *MessengerSetupService) GetPageInfo(ctx context.Context, pageAccessToken
 
 	// Verificar si hay error en la respuesta
 	if pageInfo.ID == "" {
-		var errorResp FacebookAPIResponse
+		var errorResp MetaAPIResponse
 		resp.Body.Close()
 		
 		// Hacer la petición de nuevo para obtener el error

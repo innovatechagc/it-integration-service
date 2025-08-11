@@ -9,6 +9,8 @@ import (
 type ChannelIntegrationRepository interface {
 	GetByID(ctx context.Context, id string) (*ChannelIntegration, error)
 	GetByTenantID(ctx context.Context, tenantID string) ([]*ChannelIntegration, error)
+	GetByPlatform(ctx context.Context, platform Platform) ([]*ChannelIntegration, error)
+	GetActiveByTenant(ctx context.Context, tenantID string) ([]*ChannelIntegration, error)
 	Create(ctx context.Context, integration *ChannelIntegration) error
 	Update(ctx context.Context, integration *ChannelIntegration) error
 	Delete(ctx context.Context, id string) error

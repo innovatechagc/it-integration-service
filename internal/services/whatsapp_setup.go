@@ -54,22 +54,7 @@ type WhatsAppWebhookSubscription struct {
 	Fields []string `json:"fields"`
 }
 
-// MetaAPIResponse representa una respuesta de la API de Meta
-type MetaAPIResponse struct {
-	Data  json.RawMessage `json:"data,omitempty"`
-	Error *MetaAPIError   `json:"error,omitempty"`
-}
 
-// MetaAPIError representa un error de la API de Meta
-type MetaAPIError struct {
-	Message   string `json:"message"`
-	Type      string `json:"type"`
-	Code      int    `json:"code"`
-	ErrorData struct {
-		MessagingProduct string `json:"messaging_product"`
-		Details          string `json:"details"`
-	} `json:"error_data,omitempty"`
-}
 
 // GetBusinessInfo obtiene información de la cuenta de WhatsApp Business
 func (s *WhatsAppSetupService) GetBusinessInfo(ctx context.Context, accessToken, businessAccountID string) (*WhatsAppBusinessInfo, error) {

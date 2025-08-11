@@ -197,7 +197,8 @@ func (r *channelIntegrationRepository) GetByPlatformAndTenant(ctx context.Contex
 	query := `
 		SELECT id, tenant_id, platform, provider, access_token, webhook_url, status, config, created_at, updated_at
 		FROM channel_integrations
-		WHERE platform = $1 AND tenant_id = $2
+		WHERE platform = $1 AND tenant_id = $2 AND status = 'active'
+		ORDER BY created_at DESC
 		LIMIT 1`
 
 	var integration domain.ChannelIntegration
@@ -218,9 +219,9 @@ func (r *channelIntegrationRepository) GetByPlatformAndTenant(ctx context.Contex
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("channel integration not found")
+			return nil, fmt.Errorf("no active channel integration found for platform %s and tenant %s", platform, tenantID)
 		}
-		return nil, fmt.Errorf("failed to get channel integration: %w", err)
+		return nil, fmt.Errorf("failed to get channel integration by platform and tenant: %w", err)
 	}
 
 	if err := json.Unmarshal(configJSON, &integration.Config); err != nil {
@@ -228,6 +229,108 @@ func (r *channelIntegrationRepository) GetByPlatformAndTenant(ctx context.Contex
 	}
 
 	return &integration, nil
+}
+
+// GetByPlatform obtiene todas las integraciones de una plataforma específica
+func (r *channelIntegrationRepository) GetByPlatform(ctx context.Context, platform domain.Platform) ([]*domain.ChannelIntegration, error) {
+	query := `
+		SELECT id, tenant_id, platform, provider, access_token, webhook_url, status, config, created_at, updated_at
+		FROM channel_integrations
+		WHERE platform = $1
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.DB.QueryContext(ctx, query, platform)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query channel integrations by platform: %w", err)
+	}
+	defer rows.Close()
+
+	var integrations []*domain.ChannelIntegration
+
+	for rows.Next() {
+		var integration domain.ChannelIntegration
+		var configJSON []byte
+
+		err := rows.Scan(
+			&integration.ID,
+			&integration.TenantID,
+			&integration.Platform,
+			&integration.Provider,
+			&integration.AccessToken,
+			&integration.WebhookURL,
+			&integration.Status,
+			&configJSON,
+			&integration.CreatedAt,
+			&integration.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan channel integration: %w", err)
+		}
+
+		if err := json.Unmarshal(configJSON, &integration.Config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+		}
+
+		integrations = append(integrations, &integration)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return integrations, nil
+}
+
+// GetActiveByTenant obtiene todas las integraciones activas de un tenant
+func (r *channelIntegrationRepository) GetActiveByTenant(ctx context.Context, tenantID string) ([]*domain.ChannelIntegration, error) {
+	query := `
+		SELECT id, tenant_id, platform, provider, access_token, webhook_url, status, config, created_at, updated_at
+		FROM channel_integrations
+		WHERE tenant_id = $1 AND status = 'active'
+		ORDER BY platform, created_at DESC`
+
+	rows, err := r.db.DB.QueryContext(ctx, query, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query active channel integrations: %w", err)
+	}
+	defer rows.Close()
+
+	var integrations []*domain.ChannelIntegration
+
+	for rows.Next() {
+		var integration domain.ChannelIntegration
+		var configJSON []byte
+
+		err := rows.Scan(
+			&integration.ID,
+			&integration.TenantID,
+			&integration.Platform,
+			&integration.Provider,
+			&integration.AccessToken,
+			&integration.WebhookURL,
+			&integration.Status,
+			&configJSON,
+			&integration.CreatedAt,
+			&integration.UpdatedAt,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan channel integration: %w", err)
+		}
+
+		if err := json.Unmarshal(configJSON, &integration.Config); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+		}
+
+		integrations = append(integrations, &integration)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return integrations, nil
 }
 
 // DB returns the database connection for direct queries
