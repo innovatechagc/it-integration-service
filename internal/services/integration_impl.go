@@ -75,6 +75,10 @@ func (s *integrationService) ProcessWebchatWebhook(ctx context.Context, payload 
 	return s.processWebhook(ctx, domain.PlatformWebchat, payload, "")
 }
 
+func (s *integrationService) ProcessMailchimpWebhook(ctx context.Context, payload []byte, signature string) error {
+	return s.processWebhook(ctx, domain.PlatformMailchimp, payload, signature)
+}
+
 // Consulta de mensajes entrantes
 func (s *integrationService) GetInboundMessages(ctx context.Context, platform string, limit, offset int) ([]*domain.InboundMessage, error) {
 	if s.inboundRepo == nil {

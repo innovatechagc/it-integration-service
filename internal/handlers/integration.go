@@ -450,3 +450,39 @@ func (h *IntegrationHandler) WebchatWebhook(c *gin.Context) {
 		Message: "Webhook processed successfully",
 	})
 }
+
+// MailchimpWebhook godoc
+// @Summary Webhook de Mailchimp
+// @Description Procesa webhooks de Mailchimp
+// @Tags webhooks
+// @Accept json
+// @Produce json
+// @Success 200 {object} domain.APIResponse
+// @Router /integrations/webhooks/mailchimp [post]
+func (h *IntegrationHandler) MailchimpWebhook(c *gin.Context) {
+	payload, err := c.GetRawData()
+	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
+		})
+		return
+	}
+
+	signature := c.GetHeader("X-Mailchimp-Signature")
+
+	if err := h.integrationService.ProcessMailchimpWebhook(c.Request.Context(), payload, signature); err != nil {
+		h.logger.Error("Failed to process Mailchimp webhook", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "PROCESSING_ERROR",
+			Message: "Failed to process webhook",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Webhook processed successfully",
+	})
+}

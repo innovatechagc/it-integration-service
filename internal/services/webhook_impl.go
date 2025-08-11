@@ -59,6 +59,8 @@ func (s *webhookService) NormalizeMessage(platform domain.Platform, payload []by
 		return s.normalizeTelegramMessage(payload)
 	case domain.PlatformWebchat:
 		return s.normalizeWebchatMessage(payload)
+	case domain.PlatformMailchimp:
+		return s.normalizeMailchimpMessage(payload)
 	default:
 		return nil, fmt.Errorf("unsupported platform: %s", platform)
 	}
@@ -293,4 +295,83 @@ func (s *webhookService) ForwardToMessagingService(ctx context.Context, message 
 	})
 
 	return nil
+}
+
+func (s *webhookService) normalizeMailchimpMessage(payload []byte) (*NormalizedMessage, error) {
+	var mailchimpPayload struct {
+		Type    string                 `json:"type"`
+		FiredAt string                 `json:"fired_at"`
+		Data    map[string]interface{} `json:"data"`
+		ListID  string                 `json:"list_id"`
+	}
+
+	if err := json.Unmarshal(payload, &mailchimpPayload); err != nil {
+		return nil, fmt.Errorf("failed to parse mailchimp payload: %w", err)
+	}
+
+	// Extraer información del payload
+	var sender, recipient, content string
+	var messageType string
+
+	switch mailchimpPayload.Type {
+	case "subscribe":
+		messageType = "subscription"
+		if data, ok := mailchimpPayload.Data["email"].(string); ok {
+			recipient = data
+		}
+		content = "Usuario suscrito a la lista"
+	case "unsubscribe":
+		messageType = "unsubscription"
+		if data, ok := mailchimpPayload.Data["email"].(string); ok {
+			recipient = data
+		}
+		content = "Usuario desuscrito de la lista"
+	case "profile":
+		messageType = "profile_update"
+		if data, ok := mailchimpPayload.Data["email"].(string); ok {
+			recipient = data
+		}
+		content = "Perfil de usuario actualizado"
+	case "cleaned":
+		messageType = "email_cleaned"
+		if data, ok := mailchimpPayload.Data["email"].(string); ok {
+			recipient = data
+		}
+		content = "Email limpiado de la lista"
+	case "upemail":
+		messageType = "email_changed"
+		if data, ok := mailchimpPayload.Data["new_email"].(string); ok {
+			recipient = data
+		}
+		content = "Email de usuario cambiado"
+	case "campaign":
+		messageType = "campaign_event"
+		if data, ok := mailchimpPayload.Data["campaign_id"].(string); ok {
+			content = fmt.Sprintf("Evento de campaña: %s", data)
+		}
+	default:
+		messageType = "unknown"
+		content = fmt.Sprintf("Evento desconocido: %s", mailchimpPayload.Type)
+	}
+
+	// Parsear timestamp
+	timestamp := time.Now().Unix()
+	if mailchimpPayload.FiredAt != "" {
+		if ts, err := time.Parse(time.RFC3339, mailchimpPayload.FiredAt); err == nil {
+			timestamp = ts.Unix()
+		}
+	}
+
+	return &NormalizedMessage{
+		Platform:  domain.PlatformMailchimp,
+		MessageID: fmt.Sprintf("mailchimp_%s_%d", mailchimpPayload.Type, timestamp),
+		Sender:    sender,
+		Recipient: recipient,
+		Content: &domain.MessageContent{
+			Type: messageType,
+			Text: content,
+		},
+		Timestamp:  timestamp,
+		RawPayload: payload,
+	}, nil
 }

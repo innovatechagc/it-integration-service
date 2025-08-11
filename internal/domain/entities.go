@@ -70,6 +70,7 @@ const (
 	PlatformInstagram Platform = "instagram"
 	PlatformTelegram  Platform = "telegram"
 	PlatformWebchat   Platform = "webchat"
+	PlatformMailchimp Platform = "mailchimp"
 )
 
 // Provider enum para proveedores de servicios
@@ -80,6 +81,7 @@ const (
 	ProviderTwilio    Provider = "twilio"
 	Provider360Dialog Provider = "360dialog"
 	ProviderCustom    Provider = "custom"
+	ProviderMailchimp Provider = "mailchimp"
 )
 
 // IntegrationStatus enum para estado de integración

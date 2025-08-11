@@ -17,6 +17,7 @@ type Config struct {
 	Integration IntegrationConfig
 	MercadoPago MercadoPagoConfig
 	TawkTo      TawkToConfig
+	Mailchimp   MailchimpConfig
 }
 
 type VaultConfig struct {
@@ -49,14 +50,21 @@ type IntegrationConfig struct {
 	WebhookVerifyTokens map[string]string
 }
 
-
-
 type TawkToConfig struct {
-	APIKey       string `envconfig:"TAWKTO_API_KEY" required:"true"`
-	BaseURL      string `envconfig:"TAWKTO_BASE_URL" default:"https://api.tawk.to"`
+	APIKey        string `envconfig:"TAWKTO_API_KEY" required:"true"`
+	BaseURL       string `envconfig:"TAWKTO_BASE_URL" default:"https://api.tawk.to"`
 	WebhookSecret string `envconfig:"TAWKTO_WEBHOOK_SECRET"`
-	WidgetID     string `envconfig:"TAWKTO_WIDGET_ID"`
-	PropertyID   string `envconfig:"TAWKTO_PROPERTY_ID"`
+	WidgetID      string `envconfig:"TAWKTO_WIDGET_ID"`
+	PropertyID    string `envconfig:"TAWKTO_PROPERTY_ID"`
+}
+
+type MailchimpConfig struct {
+	APIKey        string `envconfig:"MAILCHIMP_API_KEY" required:"true"`
+	ServerPrefix  string `envconfig:"MAILCHIMP_SERVER_PREFIX" required:"true"`
+	BaseURL       string `envconfig:"MAILCHIMP_BASE_URL" default:"https://us1.api.mailchimp.com"`
+	WebhookSecret string `envconfig:"MAILCHIMP_WEBHOOK_SECRET"`
+	AudienceID    string `envconfig:"MAILCHIMP_AUDIENCE_ID"`
+	DataCenter    string `envconfig:"MAILCHIMP_DATA_CENTER"`
 }
 
 func Load() *Config {
@@ -77,7 +85,7 @@ func Load() *Config {
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", ""),
-			Name:     getEnv("DB_NAME", "microservice"),
+			Name:     getEnv("DB_NAME", "it_db_chatbot"),
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 		},
 		ExternalAPI: ExternalAPIConfig{
@@ -97,6 +105,7 @@ func Load() *Config {
 				"telegram":  getEnv("TELEGRAM_WEBHOOK_SECRET", ""),
 				"webchat":   getEnv("WEBCHAT_WEBHOOK_SECRET", ""),
 				"tawkto":    getEnv("TAWKTO_WEBHOOK_SECRET", ""),
+				"mailchimp": getEnv("MAILCHIMP_WEBHOOK_SECRET", ""),
 			},
 			WebhookVerifyTokens: map[string]string{
 				"whatsapp":  getEnv("WHATSAPP_VERIFY_TOKEN", ""),
@@ -105,6 +114,7 @@ func Load() *Config {
 				"telegram":  getEnv("TELEGRAM_VERIFY_TOKEN", ""),
 				"webchat":   getEnv("WEBCHAT_VERIFY_TOKEN", ""),
 				"tawkto":    getEnv("TAWKTO_VERIFY_TOKEN", ""),
+				"mailchimp": getEnv("MAILCHIMP_VERIFY_TOKEN", ""),
 			},
 		},
 		MercadoPago: MercadoPagoConfig{
@@ -121,6 +131,14 @@ func Load() *Config {
 			WebhookSecret: getEnv("TAWKTO_WEBHOOK_SECRET", ""),
 			WidgetID:      getEnv("TAWKTO_WIDGET_ID", ""),
 			PropertyID:    getEnv("TAWKTO_PROPERTY_ID", ""),
+		},
+		Mailchimp: MailchimpConfig{
+			APIKey:        getEnv("MAILCHIMP_API_KEY", ""),
+			ServerPrefix:  getEnv("MAILCHIMP_SERVER_PREFIX", ""),
+			BaseURL:       getEnv("MAILCHIMP_BASE_URL", "https://us1.api.mailchimp.com"),
+			WebhookSecret: getEnv("MAILCHIMP_WEBHOOK_SECRET", ""),
+			AudienceID:    getEnv("MAILCHIMP_AUDIENCE_ID", ""),
+			DataCenter:    getEnv("MAILCHIMP_DATA_CENTER", ""),
 		},
 	}
 }

@@ -50,6 +50,10 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 	tawkToSetupService := services.NewTawkToService(&cfg.TawkTo, channelRepo, logger)
 	tawkToSetupHandler := NewTawkToHandler(tawkToSetupService, logger)
 
+	// Mailchimp service
+	mailchimpSetupService := services.NewMailchimpSetupService(&cfg.Mailchimp, channelRepo, logger)
+	mailchimpSetupHandler := NewMailchimpSetupHandler(mailchimpSetupService, integrationService, logger)
+
 	// Webhook validation middleware
 	webhookValidation := middleware.NewWebhookValidationMiddleware(cfg, logger)
 
@@ -138,6 +142,15 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 				tawkto.GET("/sessions/:tenant_id", tawkToSetupHandler.GetTawkToSessions)
 			}
 
+			mailchimp := integrations.Group("/mailchimp")
+			{
+				mailchimp.GET("/account-info", mailchimpSetupHandler.GetAccountInfo)
+				mailchimp.GET("/audience-info", mailchimpSetupHandler.GetAudienceInfo)
+				mailchimp.POST("/setup", mailchimpSetupHandler.SetupMailchimp)
+				mailchimp.PUT("/config", mailchimpSetupHandler.UpdateMailchimpConfig)
+				mailchimp.GET("/analytics", mailchimpSetupHandler.GetMailchimpAnalytics)
+			}
+
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")
 			{
@@ -161,6 +174,9 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 
 				// Tawk.to webhooks con validación
 				webhooks.POST("/tawkto", webhookValidation.ValidateWebhookSignature("tawkto"), tawkToSetupHandler.TawkToWebhookHandler)
+
+				// Mailchimp webhooks con validación
+				webhooks.POST("/mailchimp", webhookValidation.ValidateWebhookSignature("mailchimp"), integrationHandler.MailchimpWebhook)
 			}
 		}
 	}
@@ -213,45 +229,3 @@ func (h *Handler) ReadinessCheck(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, response)
 	}
 }
-
-// Ejemplo de handler comentado para testing
-/*
-// GetExample godoc
-// @Summary Get example data
-// @Description Obtiene datos de ejemplo
-// @Tags example
-// @Accept json
-// @Produce json
-// @Success 200 {object} map[string]interface{}
-// @Router /example [get]
-func (h *Handler) GetExample(c *gin.Context) {
-	// Implementación de ejemplo
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Example data",
-		"data":    []string{"item1", "item2", "item3"},
-	})
-}
-
-// CreateExample godoc
-// @Summary Create example data
-// @Description Crea datos de ejemplo
-// @Tags example
-// @Accept json
-// @Produce json
-// @Param request body map[string]interface{} true "Example data"
-// @Success 201 {object} map[string]interface{}
-// @Router /example [post]
-func (h *Handler) CreateExample(c *gin.Context) {
-	var request map[string]interface{}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Implementación de ejemplo
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Example created",
-		"data":    request,
-	})
-}
-*/
