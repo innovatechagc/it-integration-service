@@ -233,4 +233,35 @@ func (s *queryService) GetChatHistory(ctx context.Context, platform, userID stri
 	}, nil
 }
 
- 
+// extractTextFromPayload extrae texto de diferentes formatos de payload
+func extractTextFromPayload(payload map[string]interface{}, platform domain.Platform) string {
+	switch platform {
+	case domain.PlatformWhatsApp:
+		if entry, ok := payload["entry"].([]interface{}); ok && len(entry) > 0 {
+			if entryObj, ok := entry[0].(map[string]interface{}); ok {
+				if changes, ok := entryObj["changes"].([]interface{}); ok && len(changes) > 0 {
+					if changeObj, ok := changes[0].(map[string]interface{}); ok {
+						if value, ok := changeObj["value"].(map[string]interface{}); ok {
+							if messages, ok := value["messages"].([]interface{}); ok && len(messages) > 0 {
+								if msgObj, ok := messages[0].(map[string]interface{}); ok {
+									if text, ok := msgObj["text"].(map[string]interface{}); ok {
+										if body, ok := text["body"].(string); ok {
+											return body
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	case domain.PlatformTelegram:
+		if message, ok := payload["message"].(map[string]interface{}); ok {
+			if text, ok := message["text"].(string); ok {
+				return text
+			}
+		}
+	}
+	return ""
+}

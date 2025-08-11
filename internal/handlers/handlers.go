@@ -60,14 +60,8 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 			integrations.PATCH("/channels/:id", integrationHandler.UpdateChannel)
 			integrations.DELETE("/channels/:id", integrationHandler.DeleteChannel)
 
-			// Message sending
-			integrations.POST("/send", integrationHandler.SendMessage)
-			integrations.POST("/broadcast", integrationHandler.BroadcastMessage)
-
-			// Chat/Messages endpoints
+			// Message validation (solo para validar integraciones)
 			integrations.GET("/messages/inbound", integrationHandler.GetInboundMessages)
-			integrations.GET("/messages/outbound", integrationHandler.GetOutboundMessages)
-			integrations.GET("/chat/:platform/:user_id", integrationHandler.GetChatHistory)
 
 			// Platform-specific setup routes
 			telegram := integrations.Group("/telegram")
@@ -77,7 +71,7 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 				telegram.GET("/webhook-info", telegramSetupHandler.GetWebhookInfo)
 				telegram.POST("/webhook", telegramSetupHandler.SetWebhook)
 				telegram.DELETE("/webhook", telegramSetupHandler.DeleteWebhook)
-				telegram.POST("/test-message", telegramSetupHandler.TestMessage)
+				telegram.POST("/validate-token", telegramSetupHandler.ValidateToken)
 			}
 
 			whatsapp := integrations.Group("/whatsapp")

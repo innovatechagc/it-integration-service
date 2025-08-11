@@ -1,15 +1,13 @@
 package handlers
 
 import (
-	"context"
-	"encoding/json"
-	"io"
 	"net/http"
 	"strconv"
 
 	"it-integration-service/internal/domain"
 	"it-integration-service/internal/services"
 	"it-integration-service/pkg/logger"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,9 +23,11 @@ func NewIntegrationHandler(integrationService services.IntegrationService, logge
 	}
 }
 
+// Channel Management
+
 // GetChannels godoc
-// @Summary Listar integraciones de canales
-// @Description Obtiene todas las integraciones activas por tenant
+// @Summary Obtener canales de integración
+// @Description Obtiene todos los canales de integración para un tenant
 // @Tags integrations
 // @Accept json
 // @Produce json
@@ -48,8 +48,8 @@ func (h *IntegrationHandler) GetChannels(c *gin.Context) {
 	if err != nil {
 		h.logger.Error("Failed to get channels", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to get channels",
+			Code:    "FETCH_ERROR",
+			Message: "Failed to get channels: " + err.Error(),
 		})
 		return
 	}
@@ -62,23 +62,30 @@ func (h *IntegrationHandler) GetChannels(c *gin.Context) {
 }
 
 // GetChannel godoc
-// @Summary Obtener detalles de integración
-// @Description Obtiene los detalles de una integración específica
+// @Summary Obtener canal específico
+// @Description Obtiene un canal de integración por ID
 // @Tags integrations
 // @Accept json
 // @Produce json
-// @Param id path string true "ID de la integración"
+// @Param id path string true "ID del canal"
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/channels/{id} [get]
 func (h *IntegrationHandler) GetChannel(c *gin.Context) {
 	id := c.Param("id")
-	
+	if id == "" {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Channel ID is required",
+		})
+		return
+	}
+
 	channel, err := h.integrationService.GetChannel(c.Request.Context(), id)
 	if err != nil {
 		h.logger.Error("Failed to get channel", err)
-		c.JSON(http.StatusNotFound, domain.APIResponse{
-			Code:    "NOT_FOUND",
-			Message: "Channel not found",
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "FETCH_ERROR",
+			Message: "Failed to get channel: " + err.Error(),
 		})
 		return
 	}
@@ -91,12 +98,12 @@ func (h *IntegrationHandler) GetChannel(c *gin.Context) {
 }
 
 // CreateChannel godoc
-// @Summary Registrar nueva integración
-// @Description Registra una nueva integración de canal
+// @Summary Crear canal de integración
+// @Description Crea un nuevo canal de integración
 // @Tags integrations
 // @Accept json
 // @Produce json
-// @Param integration body domain.ChannelIntegration true "Datos de la integración"
+// @Param request body domain.ChannelIntegration true "Datos del canal"
 // @Success 201 {object} domain.APIResponse
 // @Router /integrations/channels [post]
 func (h *IntegrationHandler) CreateChannel(c *gin.Context) {
@@ -112,8 +119,8 @@ func (h *IntegrationHandler) CreateChannel(c *gin.Context) {
 	if err := h.integrationService.CreateChannel(c.Request.Context(), &integration); err != nil {
 		h.logger.Error("Failed to create channel", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to create channel",
+			Code:    "CREATE_ERROR",
+			Message: "Failed to create channel: " + err.Error(),
 		})
 		return
 	}
@@ -126,18 +133,25 @@ func (h *IntegrationHandler) CreateChannel(c *gin.Context) {
 }
 
 // UpdateChannel godoc
-// @Summary Actualizar integración
-// @Description Actualiza una integración existente
+// @Summary Actualizar canal de integración
+// @Description Actualiza un canal de integración existente
 // @Tags integrations
 // @Accept json
 // @Produce json
-// @Param id path string true "ID de la integración"
-// @Param integration body domain.ChannelIntegration true "Datos actualizados"
+// @Param id path string true "ID del canal"
+// @Param request body domain.ChannelIntegration true "Datos actualizados del canal"
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/channels/{id} [patch]
 func (h *IntegrationHandler) UpdateChannel(c *gin.Context) {
 	id := c.Param("id")
-	
+	if id == "" {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Channel ID is required",
+		})
+		return
+	}
+
 	var integration domain.ChannelIntegration
 	if err := c.ShouldBindJSON(&integration); err != nil {
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
@@ -151,8 +165,8 @@ func (h *IntegrationHandler) UpdateChannel(c *gin.Context) {
 	if err := h.integrationService.UpdateChannel(c.Request.Context(), &integration); err != nil {
 		h.logger.Error("Failed to update channel", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to update channel",
+			Code:    "UPDATE_ERROR",
+			Message: "Failed to update channel: " + err.Error(),
 		})
 		return
 	}
@@ -165,22 +179,29 @@ func (h *IntegrationHandler) UpdateChannel(c *gin.Context) {
 }
 
 // DeleteChannel godoc
-// @Summary Eliminar integración
-// @Description Desactiva o elimina una integración
+// @Summary Eliminar canal de integración
+// @Description Elimina un canal de integración
 // @Tags integrations
 // @Accept json
 // @Produce json
-// @Param id path string true "ID de la integración"
+// @Param id path string true "ID del canal"
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/channels/{id} [delete]
 func (h *IntegrationHandler) DeleteChannel(c *gin.Context) {
 	id := c.Param("id")
-	
+	if id == "" {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Channel ID is required",
+		})
+		return
+	}
+
 	if err := h.integrationService.DeleteChannel(c.Request.Context(), id); err != nil {
 		h.logger.Error("Failed to delete channel", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to delete channel",
+			Code:    "DELETE_ERROR",
+			Message: "Failed to delete channel: " + err.Error(),
 		})
 		return
 	}
@@ -191,100 +212,40 @@ func (h *IntegrationHandler) DeleteChannel(c *gin.Context) {
 	})
 }
 
-// SendMessage godoc
-// @Summary Enviar mensaje
-// @Description Envía un mensaje a través de un canal específico
-// @Tags integrations
-// @Accept json
-// @Produce json
-// @Param request body domain.SendMessageRequest true "Datos del mensaje"
-// @Success 200 {object} domain.APIResponse
-// @Router /integrations/send [post]
-func (h *IntegrationHandler) SendMessage(c *gin.Context) {
-	var request domain.SendMessageRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "Invalid request body: " + err.Error(),
-		})
-		return
-	}
-
-	if err := h.integrationService.SendMessage(c.Request.Context(), &request); err != nil {
-		h.logger.Error("Failed to send message", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "SEND_ERROR",
-			Message: "Failed to send message: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Message sent successfully",
-	})
-}
-
-// BroadcastMessage godoc
-// @Summary Enviar mensaje masivo
-// @Description Envía un mensaje a múltiples destinatarios en diferentes canales
-// @Tags integrations
-// @Accept json
-// @Produce json
-// @Param request body domain.BroadcastMessageRequest true "Datos del mensaje masivo"
-// @Success 200 {object} domain.APIResponse
-// @Router /integrations/broadcast [post]
-func (h *IntegrationHandler) BroadcastMessage(c *gin.Context) {
-	var request domain.BroadcastMessageRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "Invalid request body: " + err.Error(),
-		})
-		return
-	}
-
-	results, err := h.integrationService.BroadcastMessage(c.Request.Context(), &request)
-	if err != nil {
-		h.logger.Error("Failed to broadcast message", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "BROADCAST_ERROR",
-			Message: "Failed to broadcast message: " + err.Error(),
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Broadcast completed",
-		Data:    results,
-	})
-}
-
-// Chat/Messages endpoints
+// Message History (solo para validación)
 
 // GetInboundMessages godoc
 // @Summary Obtener mensajes entrantes
-// @Description Obtiene el historial de mensajes entrantes por plataforma
-// @Tags messages
+// @Description Obtiene mensajes entrantes para validación de integración
+// @Tags integrations
 // @Accept json
 // @Produce json
-// @Param platform query string false "Filtrar por plataforma"
-// @Param limit query int false "Límite de mensajes (default: 50)"
+// @Param platform query string true "Plataforma"
+// @Param limit query int false "Límite de resultados" default(10)
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/messages/inbound [get]
 func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 	platform := c.Query("platform")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if platform == "" {
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_REQUEST",
+			Message: "Platform is required",
+		})
+		return
+	}
 
-	// Obtener mensajes reales de la base de datos
-	messages, err := h.integrationService.GetInboundMessages(c.Request.Context(), platform, limit, offset)
+	limitStr := c.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 10
+	}
+
+	messages, err := h.integrationService.GetInboundMessages(c.Request.Context(), platform, limit, 0)
 	if err != nil {
 		h.logger.Error("Failed to get inbound messages", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to get inbound messages",
+			Code:    "FETCH_ERROR",
+			Message: "Failed to get inbound messages: " + err.Error(),
 		})
 		return
 	}
@@ -296,193 +257,217 @@ func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 	})
 }
 
-// GetOutboundMessages godoc
-// @Summary Obtener mensajes salientes
-// @Description Obtiene el historial de mensajes enviados por plataforma
-// @Tags messages
-// @Accept json
-// @Produce json
-// @Param platform query string false "Filtrar por plataforma"
-// @Param limit query int false "Límite de mensajes (default: 50)"
-// @Success 200 {object} domain.APIResponse
-// @Router /integrations/messages/outbound [get]
-func (h *IntegrationHandler) GetOutboundMessages(c *gin.Context) {
-	platform := c.Query("platform")
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-
-	messages, err := h.integrationService.GetOutboundMessages(c.Request.Context(), platform, limit, offset)
-	if err != nil {
-		h.logger.Error("Failed to get outbound messages", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to get outbound messages",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Outbound messages retrieved successfully",
-		Data:    messages,
-	})
-}
-
-// GetChatHistory godoc
-// @Summary Obtener historial de chat
-// @Description Obtiene la conversación entre el bot y un usuario específico
-// @Tags messages
-// @Accept json
-// @Produce json
-// @Param platform path string true "Plataforma (telegram, whatsapp, etc)"
-// @Param user_id path string true "ID del usuario"
-// @Success 200 {object} domain.APIResponse
-// @Router /integrations/chat/{platform}/{user_id} [get]
-func (h *IntegrationHandler) GetChatHistory(c *gin.Context) {
-	platform := c.Param("platform")
-	userID := c.Param("user_id")
-
-	// Obtener historial real de la base de datos
-	chatHistory, err := h.integrationService.GetChatHistory(c.Request.Context(), platform, userID)
-	if err != nil {
-		h.logger.Error("Failed to get chat history", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "INTERNAL_ERROR",
-			Message: "Failed to get chat history",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Chat history retrieved successfully",
-		Data:    chatHistory,
-	})
-}
-
-// Webhook handlers
+// Webhook Handlers
 
 // WhatsAppWebhook godoc
-// @Summary Webhook para WhatsApp
-// @Description Procesa webhooks entrantes de WhatsApp
+// @Summary Webhook de WhatsApp
+// @Description Procesa webhooks de WhatsApp
 // @Tags webhooks
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/whatsapp [post]
 func (h *IntegrationHandler) WhatsAppWebhook(c *gin.Context) {
-	// Verificación de webhook de Meta (GET request)
 	if c.Request.Method == "GET" {
-		h.verifyFacebookWebhook(c)
+		// Verificación de webhook
+		mode := c.Query("hub.mode")
+		token := c.Query("hub.verify_token")
+		challenge := c.Query("hub.challenge")
+
+		if mode == "subscribe" && token == "test-token" {
+			c.String(http.StatusOK, challenge)
+			return
+		}
+
+		c.JSON(http.StatusForbidden, domain.APIResponse{
+			Code:    "VERIFICATION_FAILED",
+			Message: "Webhook verification failed",
+		})
 		return
 	}
-	
-	// Procesamiento de webhook (POST request)
-	h.processWebhook(c, h.integrationService.ProcessWhatsAppWebhook)
+
+	// Procesamiento de webhook
+	payload, err := c.GetRawData()
+	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
+		})
+		return
+	}
+
+	signature := c.GetHeader("X-Hub-Signature-256")
+	if err := h.integrationService.ProcessWhatsAppWebhook(c.Request.Context(), payload, signature); err != nil {
+		h.logger.Error("Failed to process WhatsApp webhook", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "PROCESSING_ERROR",
+			Message: "Failed to process webhook",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Webhook processed successfully",
+	})
 }
 
 // MessengerWebhook godoc
-// @Summary Webhook para Messenger
-// @Description Procesa webhooks entrantes de Facebook Messenger
+// @Summary Webhook de Messenger
+// @Description Procesa webhooks de Messenger
 // @Tags webhooks
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/messenger [post]
 func (h *IntegrationHandler) MessengerWebhook(c *gin.Context) {
-	// Verificación de webhook de Facebook
 	if c.Request.Method == "GET" {
-		h.verifyFacebookWebhook(c)
+		// Verificación de webhook
+		mode := c.Query("hub.mode")
+		token := c.Query("hub.verify_token")
+		challenge := c.Query("hub.challenge")
+
+		if mode == "subscribe" && token == "test-token" {
+			c.String(http.StatusOK, challenge)
+			return
+		}
+
+		c.JSON(http.StatusForbidden, domain.APIResponse{
+			Code:    "VERIFICATION_FAILED",
+			Message: "Webhook verification failed",
+		})
 		return
 	}
-	h.processWebhook(c, h.integrationService.ProcessMessengerWebhook)
+
+	payload, err := c.GetRawData()
+	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
+		})
+		return
+	}
+
+	signature := c.GetHeader("X-Hub-Signature-256")
+	if err := h.integrationService.ProcessMessengerWebhook(c.Request.Context(), payload, signature); err != nil {
+		h.logger.Error("Failed to process Messenger webhook", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "PROCESSING_ERROR",
+			Message: "Failed to process webhook",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Webhook processed successfully",
+	})
 }
 
 // InstagramWebhook godoc
-// @Summary Webhook para Instagram
-// @Description Procesa webhooks entrantes de Instagram
+// @Summary Webhook de Instagram
+// @Description Procesa webhooks de Instagram
 // @Tags webhooks
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/instagram [post]
 func (h *IntegrationHandler) InstagramWebhook(c *gin.Context) {
-	// Verificación de webhook de Facebook
 	if c.Request.Method == "GET" {
-		h.verifyFacebookWebhook(c)
+		// Verificación de webhook
+		mode := c.Query("hub.mode")
+		token := c.Query("hub.verify_token")
+		challenge := c.Query("hub.challenge")
+
+		if mode == "subscribe" && token == "test-token" {
+			c.String(http.StatusOK, challenge)
+			return
+		}
+
+		c.JSON(http.StatusForbidden, domain.APIResponse{
+			Code:    "VERIFICATION_FAILED",
+			Message: "Webhook verification failed",
+		})
 		return
 	}
-	h.processWebhook(c, h.integrationService.ProcessInstagramWebhook)
+
+	payload, err := c.GetRawData()
+	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
+		c.JSON(http.StatusBadRequest, domain.APIResponse{
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
+		})
+		return
+	}
+
+	signature := c.GetHeader("X-Hub-Signature-256")
+	if err := h.integrationService.ProcessInstagramWebhook(c.Request.Context(), payload, signature); err != nil {
+		h.logger.Error("Failed to process Instagram webhook", err)
+		c.JSON(http.StatusInternalServerError, domain.APIResponse{
+			Code:    "PROCESSING_ERROR",
+			Message: "Failed to process webhook",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Webhook processed successfully",
+	})
 }
 
 // TelegramWebhook godoc
-// @Summary Webhook para Telegram
-// @Description Procesa webhooks entrantes de Telegram
+// @Summary Webhook de Telegram
+// @Description Procesa webhooks de Telegram
 // @Tags webhooks
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/telegram [post]
 func (h *IntegrationHandler) TelegramWebhook(c *gin.Context) {
-	var update map[string]interface{}
-	if err := c.ShouldBindJSON(&update); err != nil {
+	payload, err := c.GetRawData()
+	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "Invalid payload: " + err.Error(),
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
 		})
 		return
 	}
 
-	// Parse básico (luego puedes mapear al struct oficial de Telegram)
-	if message, exists := update["message"].(map[string]interface{}); exists {
-		text := ""
-		if textVal, ok := message["text"].(string); ok {
-			text = textVal
-		}
-		
-		chat := message["chat"].(map[string]interface{})
-		chatID := int64(chat["id"].(float64))
-
-		// Log para debugging
-		h.logger.Info("Telegram webhook received", 
-			"chat_id", chatID,
-			"text", text,
-		)
-
-		// Aquí puedes reenviar al bot-service u otra lógica
-		// Por ahora solo loggeamos
-	}
-
-	// Convertir el update a JSON para el servicio
-	payload, _ := json.Marshal(update)
 	if err := h.integrationService.ProcessTelegramWebhook(c.Request.Context(), payload); err != nil {
-		h.logger.Error("Failed to process Telegram webhook", 
-			"error", err.Error(),
-		)
+		h.logger.Error("Failed to process Telegram webhook", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "WEBHOOK_ERROR",
+			Code:    "PROCESSING_ERROR",
 			Message: "Failed to process webhook",
 		})
 		return
 	}
 
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, domain.APIResponse{
+		Code:    "SUCCESS",
+		Message: "Webhook processed successfully",
+	})
 }
 
 // WebchatWebhook godoc
-// @Summary Webhook para Webchat
-// @Description Procesa webhooks entrantes del webchat embebido
+// @Summary Webhook de Webchat
+// @Description Procesa webhooks de Webchat
 // @Tags webhooks
 // @Accept json
 // @Produce json
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/webchat [post]
 func (h *IntegrationHandler) WebchatWebhook(c *gin.Context) {
-	payload, err := io.ReadAll(c.Request.Body)
+	payload, err := c.GetRawData()
 	if err != nil {
+		h.logger.Error("Failed to read webhook payload", err)
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "Failed to read request body",
+			Code:    "INVALID_PAYLOAD",
+			Message: "Failed to read webhook payload",
 		})
 		return
 	}
@@ -490,7 +475,7 @@ func (h *IntegrationHandler) WebchatWebhook(c *gin.Context) {
 	if err := h.integrationService.ProcessWebchatWebhook(c.Request.Context(), payload); err != nil {
 		h.logger.Error("Failed to process Webchat webhook", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "WEBHOOK_ERROR",
+			Code:    "PROCESSING_ERROR",
 			Message: "Failed to process webhook",
 		})
 		return
@@ -500,55 +485,4 @@ func (h *IntegrationHandler) WebchatWebhook(c *gin.Context) {
 		Code:    "SUCCESS",
 		Message: "Webhook processed successfully",
 	})
-}
-
-// Helper functions
-
-func (h *IntegrationHandler) processWebhook(c *gin.Context, processor func(ctx context.Context, payload []byte, signature string) error) {
-	payload, err := io.ReadAll(c.Request.Body)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "Failed to read request body",
-		})
-		return
-	}
-
-	signature := c.GetHeader("X-Hub-Signature-256")
-	if signature == "" {
-		signature = c.GetHeader("X-Hub-Signature")
-	}
-
-	if err := processor(c.Request.Context(), payload, signature); err != nil {
-		h.logger.Error("Failed to process webhook", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "WEBHOOK_ERROR",
-			Message: "Failed to process webhook",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, domain.APIResponse{
-		Code:    "SUCCESS",
-		Message: "Webhook processed successfully",
-	})
-}
-
-func (h *IntegrationHandler) verifyFacebookWebhook(c *gin.Context) {
-	mode := c.Query("hub.mode")
-	token := c.Query("hub.verify_token")
-	challenge := c.Query("hub.challenge")
-
-	// TODO: Validar el verify_token contra la configuración
-	if mode == "subscribe" && token != "" {
-		challengeInt, err := strconv.Atoi(challenge)
-		if err != nil {
-			c.Status(http.StatusBadRequest)
-			return
-		}
-		c.JSON(http.StatusOK, challengeInt)
-		return
-	}
-
-	c.Status(http.StatusForbidden)
 }

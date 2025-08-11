@@ -6,13 +6,14 @@ import (
 	"it-integration-service/internal/domain"
 	"it-integration-service/internal/services"
 	"it-integration-service/pkg/logger"
+
 	"github.com/gin-gonic/gin"
 )
 
 type TelegramSetupHandler struct {
-	telegramService     *services.TelegramSetupService
-	integrationService  services.IntegrationService
-	logger              logger.Logger
+	telegramService    *services.TelegramSetupService
+	integrationService services.IntegrationService
+	logger             logger.Logger
 }
 
 func NewTelegramSetupHandler(telegramService *services.TelegramSetupService, integrationService services.IntegrationService, logger logger.Logger) *TelegramSetupHandler {
@@ -273,16 +274,16 @@ func (h *TelegramSetupHandler) DeleteWebhook(c *gin.Context) {
 	})
 }
 
-// TestMessage godoc
-// @Summary Enviar mensaje de prueba
-// @Description Envía un mensaje de prueba a un chat específico
+// ValidateToken godoc
+// @Summary Validar token del bot
+// @Description Valida que el token del bot sea válido
 // @Tags telegram
 // @Accept json
 // @Produce json
-// @Param request body map[string]string true "bot_token, chat_id y text"
+// @Param request body map[string]string true "bot_token"
 // @Success 200 {object} domain.APIResponse
-// @Router /integrations/telegram/test-message [post]
-func (h *TelegramSetupHandler) TestMessage(c *gin.Context) {
+// @Router /integrations/telegram/validate-token [post]
+func (h *TelegramSetupHandler) ValidateToken(c *gin.Context) {
 	var request map[string]string
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
@@ -301,35 +302,17 @@ func (h *TelegramSetupHandler) TestMessage(c *gin.Context) {
 		return
 	}
 
-	chatID, exists := request["chat_id"]
-	if !exists || chatID == "" {
+	if err := h.telegramService.ValidateBotToken(c.Request.Context(), botToken); err != nil {
+		h.logger.Error("Failed to validate bot token", err)
 		c.JSON(http.StatusBadRequest, domain.APIResponse{
-			Code:    "INVALID_REQUEST",
-			Message: "chat_id is required",
-		})
-		return
-	}
-
-	text, exists := request["text"]
-	if !exists || text == "" {
-		text = "🤖 ¡Hola! Este es un mensaje de prueba del bot de IT App Chat."
-	}
-
-	if err := h.telegramService.SendMessage(c.Request.Context(), botToken, chatID, text); err != nil {
-		h.logger.Error("Failed to send test message", err)
-		c.JSON(http.StatusInternalServerError, domain.APIResponse{
-			Code:    "MESSAGE_ERROR",
-			Message: "Failed to send test message: " + err.Error(),
+			Code:    "VALIDATION_ERROR",
+			Message: "Failed to validate bot token: " + err.Error(),
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, domain.APIResponse{
 		Code:    "SUCCESS",
-		Message: "Test message sent successfully",
-		Data: map[string]string{
-			"chat_id": chatID,
-			"text":    text,
-		},
+		Message: "Bot token validated successfully",
 	})
 }

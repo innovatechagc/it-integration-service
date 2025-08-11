@@ -53,20 +53,17 @@ func main() {
 	// Inicializar repositorios
 	channelRepo := repository.NewChannelIntegrationRepository(db)
 	inboundRepo := repository.NewInboundMessageRepository(db)
-	outboundRepo := repository.NewOutboundMessageLogRepository(db)
 
 	// Inicializar servicios
 	healthService := services.NewHealthService()
 	webhookService := services.NewWebhookService(cfg.Integration.MessagingServiceURL, logger)
-	providerService := services.NewMessagingProviderService(logger)
+	channelService := services.NewChannelService(channelRepo, logger)
 
-	// Servicio de integración con repositorios reales
+	// Servicio de integración (solo para integraciones, no envío de mensajes)
 	integrationService := services.NewIntegrationService(
-		channelRepo,
+		channelService,
 		inboundRepo,
-		outboundRepo,
 		webhookService,
-		providerService,
 		logger,
 	)
 
