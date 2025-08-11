@@ -268,22 +268,10 @@ func (h *IntegrationHandler) GetInboundMessages(c *gin.Context) {
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/whatsapp [post]
 func (h *IntegrationHandler) WhatsAppWebhook(c *gin.Context) {
-	if c.Request.Method == "GET" {
-		// Verificación de webhook
-		mode := c.Query("hub.mode")
-		token := c.Query("hub.verify_token")
-		challenge := c.Query("hub.challenge")
-
-		if mode == "subscribe" && token == "test-token" {
-			c.String(http.StatusOK, challenge)
-			return
-		}
-
-		c.JSON(http.StatusForbidden, domain.APIResponse{
-			Code:    "VERIFICATION_FAILED",
-			Message: "Webhook verification failed",
-		})
-		return
+	// La validación de firma y verificación se maneja en el middleware
+	// Solo procesar el webhook si es un POST request
+	if c.Request.Method != "POST" {
+		return // El middleware ya manejó la verificación GET
 	}
 
 	// Procesamiento de webhook
@@ -297,8 +285,8 @@ func (h *IntegrationHandler) WhatsAppWebhook(c *gin.Context) {
 		return
 	}
 
-	signature := c.GetHeader("X-Hub-Signature-256")
-	if err := h.integrationService.ProcessWhatsAppWebhook(c.Request.Context(), payload, signature); err != nil {
+	// La firma ya fue validada por el middleware
+	if err := h.integrationService.ProcessWhatsAppWebhook(c.Request.Context(), payload, ""); err != nil {
 		h.logger.Error("Failed to process WhatsApp webhook", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
 			Code:    "PROCESSING_ERROR",
@@ -322,22 +310,10 @@ func (h *IntegrationHandler) WhatsAppWebhook(c *gin.Context) {
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/messenger [post]
 func (h *IntegrationHandler) MessengerWebhook(c *gin.Context) {
-	if c.Request.Method == "GET" {
-		// Verificación de webhook
-		mode := c.Query("hub.mode")
-		token := c.Query("hub.verify_token")
-		challenge := c.Query("hub.challenge")
-
-		if mode == "subscribe" && token == "test-token" {
-			c.String(http.StatusOK, challenge)
-			return
-		}
-
-		c.JSON(http.StatusForbidden, domain.APIResponse{
-			Code:    "VERIFICATION_FAILED",
-			Message: "Webhook verification failed",
-		})
-		return
+	// La validación de firma y verificación se maneja en el middleware
+	// Solo procesar el webhook si es un POST request
+	if c.Request.Method != "POST" {
+		return // El middleware ya manejó la verificación GET
 	}
 
 	payload, err := c.GetRawData()
@@ -350,8 +326,8 @@ func (h *IntegrationHandler) MessengerWebhook(c *gin.Context) {
 		return
 	}
 
-	signature := c.GetHeader("X-Hub-Signature-256")
-	if err := h.integrationService.ProcessMessengerWebhook(c.Request.Context(), payload, signature); err != nil {
+	// La firma ya fue validada por el middleware
+	if err := h.integrationService.ProcessMessengerWebhook(c.Request.Context(), payload, ""); err != nil {
 		h.logger.Error("Failed to process Messenger webhook", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
 			Code:    "PROCESSING_ERROR",
@@ -375,22 +351,10 @@ func (h *IntegrationHandler) MessengerWebhook(c *gin.Context) {
 // @Success 200 {object} domain.APIResponse
 // @Router /integrations/webhooks/instagram [post]
 func (h *IntegrationHandler) InstagramWebhook(c *gin.Context) {
-	if c.Request.Method == "GET" {
-		// Verificación de webhook
-		mode := c.Query("hub.mode")
-		token := c.Query("hub.verify_token")
-		challenge := c.Query("hub.challenge")
-
-		if mode == "subscribe" && token == "test-token" {
-			c.String(http.StatusOK, challenge)
-			return
-		}
-
-		c.JSON(http.StatusForbidden, domain.APIResponse{
-			Code:    "VERIFICATION_FAILED",
-			Message: "Webhook verification failed",
-		})
-		return
+	// La validación de firma y verificación se maneja en el middleware
+	// Solo procesar el webhook si es un POST request
+	if c.Request.Method != "POST" {
+		return // El middleware ya manejó la verificación GET
 	}
 
 	payload, err := c.GetRawData()
@@ -403,8 +367,8 @@ func (h *IntegrationHandler) InstagramWebhook(c *gin.Context) {
 		return
 	}
 
-	signature := c.GetHeader("X-Hub-Signature-256")
-	if err := h.integrationService.ProcessInstagramWebhook(c.Request.Context(), payload, signature); err != nil {
+	// La firma ya fue validada por el middleware
+	if err := h.integrationService.ProcessInstagramWebhook(c.Request.Context(), payload, ""); err != nil {
 		h.logger.Error("Failed to process Instagram webhook", err)
 		c.JSON(http.StatusInternalServerError, domain.APIResponse{
 			Code:    "PROCESSING_ERROR",

@@ -1,13 +1,17 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strconv"
+	"time"
 
 	"it-integration-service/internal/domain"
 	"it-integration-service/pkg/logger"
@@ -236,12 +240,56 @@ func (s *webhookService) ForwardToMessagingService(ctx context.Context, message 
 		return nil
 	}
 
-	// Para desarrollo, solo loggear el mensaje
-	s.logger.Info("Message received (development mode)", map[string]interface{}{
-		"message_id": message.MessageID,
-		"platform":   message.Platform,
-		"sender":     message.Sender,
-		"text":       message.Content.Text,
+	// Preparar el payload para el servicio de mensajería
+	payload := map[string]interface{}{
+		"platform":    message.Platform,
+		"sender":      message.Sender,
+		"recipient":   message.Recipient,
+		"content":     message.Content,
+		"timestamp":   message.Timestamp,
+		"message_id":  message.MessageID,
+		"raw_payload": message.RawPayload,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message payload: %w", err)
+	}
+
+	// Crear request HTTP
+	url := s.messagingServiceURL + "/api/v1/webhooks/inbound"
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "it-integration-service/1.0")
+
+	// Realizar la llamada HTTP
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to forward message to messaging service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Verificar la respuesta
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		s.logger.Error("Messaging service returned error", map[string]interface{}{
+			"status_code": resp.StatusCode,
+			"response":    string(body),
+			"message_id":  message.MessageID,
+		})
+		return fmt.Errorf("messaging service returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	s.logger.Info("Message forwarded successfully to messaging service", map[string]interface{}{
+		"message_id":  message.MessageID,
+		"platform":    message.Platform,
+		"sender":      message.Sender,
+		"status_code": resp.StatusCode,
 	})
 
 	return nil

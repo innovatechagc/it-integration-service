@@ -32,9 +32,9 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 	gin.SetMode(gin.TestMode)
 	suite.router = gin.New()
 
-		// Setup basic routes for testing
-	healthService := services.NewHealthService()
-	
+	// Setup basic routes for testing
+	healthService := services.NewHealthService(nil, nil)
+
 	// Setup only health endpoints for testing
 	api := suite.router.Group("/api/v1")
 	{
@@ -47,7 +47,7 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 		})
 		api.GET("/ready", func(c *gin.Context) {
 			status := healthService.CheckReadiness()
-			if status["ready"].(bool) {
+			if status.Status == "ready" {
 				c.JSON(http.StatusOK, gin.H{"status": "ready"})
 			} else {
 				c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
@@ -99,8 +99,6 @@ func (suite *IntegrationTestSuite) TestContainersAreRunning() {
 	suite.NoError(err)
 	suite.NotEmpty(redisAddr)
 }
-
-
 
 func TestIntegrationSuite(t *testing.T) {
 	suite.Run(t, new(IntegrationTestSuite))

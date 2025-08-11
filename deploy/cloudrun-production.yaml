@@ -24,6 +24,14 @@ spec:
           value: "production"
         - name: LOG_LEVEL
           value: "warn"
+        - name: PORT
+          value: "8080"
+        - name: MESSAGING_SERVICE_URL
+          value: "https://your-messaging-service.com"
+        - name: RATE_LIMIT_RPS
+          value: "100"
+        - name: RATE_LIMIT_BURST
+          value: "200"
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
@@ -34,6 +42,61 @@ spec:
             secretKeyRef:
               key: latest
               name: it-chatbot-db-password
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-integration-encryption-key
+        - name: WHATSAPP_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-whatsapp-verify-token
+        - name: WHATSAPP_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-whatsapp-webhook-secret
+        - name: MESSENGER_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-messenger-verify-token
+        - name: MESSENGER_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-messenger-webhook-secret
+        - name: INSTAGRAM_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-instagram-verify-token
+        - name: INSTAGRAM_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-instagram-webhook-secret
+        - name: TELEGRAM_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-telegram-verify-token
+        - name: TELEGRAM_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-telegram-webhook-secret
+        - name: WEBCHAT_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-webchat-verify-token
+        - name: WEBCHAT_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-webchat-webhook-secret
 
         resources:
           limits:

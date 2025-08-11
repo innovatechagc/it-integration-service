@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"it-integration-service/internal/config"
+	"it-integration-service/internal/controllers"
 	"it-integration-service/internal/handlers"
 	"it-integration-service/internal/middleware"
 	"it-integration-service/internal/repository"
+	"it-integration-service/internal/routes"
 	"it-integration-service/internal/services"
 	"it-integration-service/pkg/logger"
 
@@ -55,9 +57,18 @@ func main() {
 	inboundRepo := repository.NewInboundMessageRepository(db)
 
 	// Inicializar servicios
-	healthService := services.NewHealthService()
+	healthService := services.NewHealthService(db.DB, logger)
 	webhookService := services.NewWebhookService(cfg.Integration.MessagingServiceURL, logger)
 	channelService := services.NewChannelService(channelRepo, logger)
+
+	// Inicializar servicio de encriptación
+	// encryptionService, err := services.NewEncryptionService(cfg.Integration.EncryptionKey)
+	// if err != nil {
+	// 	logger.Fatal("Failed to initialize encryption service", err)
+	// }
+
+	// Inicializar servicio de rotación de tokens
+	tokenRotationService := services.NewTokenRotationService(channelRepo, logger)
 
 	// Servicio de integración (solo para integraciones, no envío de mensajes)
 	integrationService := services.NewIntegrationService(
@@ -66,6 +77,17 @@ func main() {
 		webhookService,
 		logger,
 	)
+
+	// Inicializar configuración de Mercado Pago
+	mpConfig, err := config.NewMercadoPagoConfig()
+	if err != nil {
+		logger.Fatal("Failed to initialize Mercado Pago configuration", err)
+	}
+
+	// Inicializar servicios de pago
+	paymentService := services.NewPaymentService(mpConfig)
+	mpWebhookService := services.NewMercadoPagoWebhookService(mpConfig.SecretKey)
+	paymentController := controllers.NewPaymentController(paymentService, mpWebhookService)
 
 	// Configurar Gin
 	if cfg.Environment == "production" {
@@ -77,9 +99,19 @@ func main() {
 	router.Use(middleware.Logger(logger))
 	router.Use(middleware.CORS())
 	router.Use(middleware.Metrics())
+	router.Use(middleware.RateLimit(cfg.Integration.RateLimitRPS, cfg.Integration.RateLimitBurst))
+
+	// Programar rotación automática de tokens
+	tokenConfig := tokenRotationService.GetTokenRotationConfig()
+	if err := tokenRotationService.ScheduleTokenRotation(context.Background(), tokenConfig); err != nil {
+		logger.Error("Failed to schedule token rotation", err)
+	}
 
 	// Rutas
-	handlers.SetupRoutes(router, healthService, integrationService, logger)
+	handlers.SetupRoutes(router, healthService, integrationService, logger, cfg)
+
+	// Rutas de pagos
+	routes.SetupPaymentRoutes(router, paymentController)
 
 	// Servidor HTTP
 	srv := &http.Server{

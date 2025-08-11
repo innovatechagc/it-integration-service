@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"it-integration-service/internal/config"
 	"it-integration-service/internal/domain"
 	"it-integration-service/internal/middleware"
 	"it-integration-service/internal/services"
@@ -18,7 +19,7 @@ type Handler struct {
 	logger        logger.Logger
 }
 
-func SetupRoutes(router *gin.Engine, healthService services.HealthService, integrationService services.IntegrationService, logger logger.Logger) {
+func SetupRoutes(router *gin.Engine, healthService services.HealthService, integrationService services.IntegrationService, logger logger.Logger, cfg *config.Config) {
 	h := &Handler{
 		healthService: healthService,
 		logger:        logger,
@@ -40,8 +41,17 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 	instagramSetupService := services.NewInstagramSetupService(logger)
 	instagramSetupHandler := NewInstagramSetupHandler(instagramSetupService, integrationService, logger)
 
+	webchatSetupService := services.NewWebchatSetupService(logger)
+	webchatSetupHandler := NewWebchatSetupHandler(webchatSetupService, integrationService, logger)
+
+	// Webhook validation middleware
+	webhookValidation := middleware.NewWebhookValidationMiddleware(cfg, logger)
+
 	// Swagger documentation (protegido en producción)
 	router.GET("/swagger/*any", middleware.SwaggerAuth(), ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Métricas de Prometheus
+	router.GET("/metrics", middleware.MetricsHandler())
 
 	// API routes
 	api := router.Group("/api/v1")
@@ -101,16 +111,37 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 				instagram.GET("/webhook-verify", instagramSetupHandler.ValidateWebhook)
 			}
 
+			webchat := integrations.Group("/webchat")
+			{
+				webchat.POST("/setup", webchatSetupHandler.SetupWebchatIntegration)
+				webchat.GET("/config", webchatSetupHandler.GetWebchatConfig)
+				webchat.PUT("/config", webchatSetupHandler.UpdateWebchatConfig)
+				webchat.POST("/sessions", webchatSetupHandler.CreateWebchatSession)
+				webchat.GET("/sessions", webchatSetupHandler.GetWebchatSessions)
+				webchat.POST("/messages", webchatSetupHandler.SendWebchatMessage)
+				webchat.GET("/stats", webchatSetupHandler.GetWebchatStats)
+				webchat.POST("/validate", webchatSetupHandler.ValidateWebchatConfig)
+			}
+
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")
 			{
-				webhooks.GET("/whatsapp", integrationHandler.WhatsAppWebhook)
-				webhooks.POST("/whatsapp", integrationHandler.WhatsAppWebhook)
-				webhooks.GET("/messenger", integrationHandler.MessengerWebhook)
-				webhooks.POST("/messenger", integrationHandler.MessengerWebhook)
-				webhooks.GET("/instagram", integrationHandler.InstagramWebhook)
-				webhooks.POST("/instagram", integrationHandler.InstagramWebhook)
-				webhooks.POST("/telegram", integrationHandler.TelegramWebhook)
+				// WhatsApp webhooks con validación
+				webhooks.GET("/whatsapp", webhookValidation.ValidateWebhookVerification("whatsapp"), integrationHandler.WhatsAppWebhook)
+				webhooks.POST("/whatsapp", webhookValidation.ValidateWebhookSignature("whatsapp"), integrationHandler.WhatsAppWebhook)
+
+				// Messenger webhooks con validación
+				webhooks.GET("/messenger", webhookValidation.ValidateWebhookVerification("messenger"), integrationHandler.MessengerWebhook)
+				webhooks.POST("/messenger", webhookValidation.ValidateWebhookSignature("messenger"), integrationHandler.MessengerWebhook)
+
+				// Instagram webhooks con validación
+				webhooks.GET("/instagram", webhookValidation.ValidateWebhookVerification("instagram"), integrationHandler.InstagramWebhook)
+				webhooks.POST("/instagram", webhookValidation.ValidateWebhookSignature("instagram"), integrationHandler.InstagramWebhook)
+
+				// Telegram webhooks con validación
+				webhooks.POST("/telegram", webhookValidation.ValidateTelegramWebhook(), integrationHandler.TelegramWebhook)
+
+				// Webchat webhooks (sin validación específica por ahora)
 				webhooks.POST("/webchat", integrationHandler.WebchatWebhook)
 			}
 		}
@@ -148,7 +179,7 @@ func (h *Handler) HealthCheck(c *gin.Context) {
 func (h *Handler) ReadinessCheck(c *gin.Context) {
 	status := h.healthService.CheckReadiness()
 
-	if status["ready"].(bool) {
+	if status.Status == "ready" {
 		response := domain.APIResponse{
 			Code:    "SUCCESS",
 			Message: "Service is ready",

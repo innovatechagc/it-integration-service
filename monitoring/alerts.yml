@@ -1,68 +1,184 @@
 groups:
-- name: microservice-template-alerts
-  rules:
-  # Alertas de disponibilidad
-  - alert: ServiceDown
-    expr: up{job="microservice-template"} == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Microservice Template está caído"
-      description: "El servicio microservice-template no responde por más de 1 minuto"
+  - name: it-integration-service
+    rules:
+      # Alertas de disponibilidad del servicio
+      - alert: ServiceDown
+        expr: up{job="it-integration-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "IT Integration Service is down"
+          description: "The IT Integration Service has been down for more than 1 minute"
 
-  - alert: HighErrorRate
-    expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
-    for: 2m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Alta tasa de errores HTTP 5xx"
-      description: "Tasa de errores 5xx es {{ $value }} por segundo"
+      - alert: ServiceHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
 
-  # Alertas de performance
-  - alert: HighResponseTime
-    expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Tiempo de respuesta alto"
-      description: "El percentil 95 del tiempo de respuesta es {{ $value }}s"
+      # Alertas de webhooks
+      - alert: WebhookHighFailureRate
+        expr: rate(webhook_requests_total{status=~"4..|5.."}[5m]) / rate(webhook_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High webhook failure rate"
+          description: "Webhook failure rate is {{ $value | humanizePercentage }}"
 
-  - alert: HighMemoryUsage
-    expr: (container_memory_usage_bytes / container_spec_memory_limit_bytes) > 0.8
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Uso alto de memoria"
-      description: "Uso de memoria es {{ $value | humanizePercentage }}"
+      - alert: WebhookNoRequests
+        expr: rate(webhook_requests_total[10m]) == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No webhook requests received"
+          description: "No webhook requests have been received in the last 15 minutes"
 
-  - alert: HighCPUUsage
-    expr: rate(container_cpu_usage_seconds_total[5m]) > 0.8
-    for: 5m
-    labels:
-      severity: warning
-    annotations:
-      summary: "Uso alto de CPU"
-      description: "Uso de CPU es {{ $value | humanizePercentage }}"
+      # Alertas de base de datos
+      - alert: DatabaseHighLatency
+        expr: histogram_quantile(0.95, rate(database_query_duration_seconds_bucket[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database query latency"
+          description: "95th percentile of database query latency is {{ $value }}s"
 
-  # Alertas de negocio
-  - alert: LowRequestVolume
-    expr: rate(http_requests_total[5m]) < 0.1
-    for: 10m
-    labels:
-      severity: info
-    annotations:
-      summary: "Volumen bajo de requests"
-      description: "Volumen de requests es {{ $value }} por segundo"
+      - alert: DatabaseConnectionPoolExhausted
+        expr: database_connections{state="in_use"} / database_connections{state="open"} > 0.8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Database connection pool nearly exhausted"
+          description: "{{ $value | humanizePercentage }} of database connections are in use"
 
-  - alert: DatabaseConnectionFailed
-    expr: up{job="postgres"} == 0
-    for: 1m
-    labels:
-      severity: critical
-    annotations:
-      summary: "Conexión a base de datos falló"
-      description: "No se puede conectar a la base de datos PostgreSQL"
+      # Alertas de servicios externos
+      - alert: MessagingServiceUnavailable
+        expr: up{job="messaging-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Messaging Service is unavailable"
+          description: "The messaging service is down, webhook forwarding may fail"
+
+      - alert: ExternalServiceHighLatency
+        expr: histogram_quantile(0.95, rate(external_service_duration_seconds_bucket[5m])) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High external service latency"
+          description: "95th percentile of external service latency is {{ $value }}s"
+
+      # Alertas de integraciones
+      - alert: IntegrationErrors
+        expr: rate(integrations_total{status="error"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Integration errors detected"
+          description: "There are {{ $value }} integrations in error state"
+
+      - alert: NoActiveIntegrations
+        expr: integrations_total{status="active"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No active integrations"
+          description: "No integrations are currently active"
+
+      # Alertas de rate limiting
+      - alert: HighRateLimitHits
+        expr: rate(rate_limit_hits_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High rate limit hits"
+          description: "Rate limit is being hit {{ $value }} times per second"
+
+      # Alertas de memoria y recursos
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+
+      # Alertas específicas por plataforma
+      - alert: WhatsAppIntegrationIssues
+        expr: rate(webhook_requests_total{platform="whatsapp", status=~"4..|5.."}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WhatsApp integration issues"
+          description: "WhatsApp webhook is experiencing errors"
+
+      - alert: TelegramIntegrationIssues
+        expr: rate(webhook_requests_total{platform="telegram", status=~"4..|5.."}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Telegram integration issues"
+          description: "Telegram webhook is experiencing errors"
+
+      - alert: MessengerIntegrationIssues
+        expr: rate(webhook_requests_total{platform="messenger", status=~"4..|5.."}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Messenger integration issues"
+          description: "Messenger webhook is experiencing errors"
+
+      # Alertas de configuración
+      - alert: MissingWebhookSecrets
+        expr: count(webhook_requests_total) == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No webhook secrets configured"
+          description: "No webhook secrets have been configured, webhooks may fail validation"
+
+      # Alertas de salud del servicio
+      - alert: HealthCheckFailing
+        expr: http_requests_total{endpoint="/api/v1/health", status!="200"} > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Health check is failing"
+          description: "The service health check endpoint is returning errors"
+
+      # Alertas de métricas faltantes
+      - alert: MetricsNotScraped
+        expr: up{job="it-integration-service"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Metrics not being scraped"
+          description: "Prometheus is not able to scrape metrics from the service"
