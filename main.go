@@ -108,7 +108,7 @@ func main() {
 	}
 
 	// Rutas
-	handlers.SetupRoutes(router, healthService, integrationService, logger, cfg)
+	handlers.SetupRoutes(router, healthService, integrationService, logger, cfg, db)
 
 	// Rutas de pagos
 	routes.SetupPaymentRoutes(router, paymentController)

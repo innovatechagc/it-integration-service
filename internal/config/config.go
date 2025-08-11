@@ -15,6 +15,8 @@ type Config struct {
 	Database    DatabaseConfig
 	ExternalAPI ExternalAPIConfig
 	Integration IntegrationConfig
+	MercadoPago MercadoPagoConfig
+	TawkTo      TawkToConfig
 }
 
 type VaultConfig struct {
@@ -45,6 +47,16 @@ type IntegrationConfig struct {
 	RateLimitBurst      int
 	WebhookSecrets      map[string]string
 	WebhookVerifyTokens map[string]string
+}
+
+
+
+type TawkToConfig struct {
+	APIKey       string `envconfig:"TAWKTO_API_KEY" required:"true"`
+	BaseURL      string `envconfig:"TAWKTO_BASE_URL" default:"https://api.tawk.to"`
+	WebhookSecret string `envconfig:"TAWKTO_WEBHOOK_SECRET"`
+	WidgetID     string `envconfig:"TAWKTO_WIDGET_ID"`
+	PropertyID   string `envconfig:"TAWKTO_PROPERTY_ID"`
 }
 
 func Load() *Config {
@@ -84,6 +96,7 @@ func Load() *Config {
 				"instagram": getEnv("INSTAGRAM_WEBHOOK_SECRET", ""),
 				"telegram":  getEnv("TELEGRAM_WEBHOOK_SECRET", ""),
 				"webchat":   getEnv("WEBCHAT_WEBHOOK_SECRET", ""),
+				"tawkto":    getEnv("TAWKTO_WEBHOOK_SECRET", ""),
 			},
 			WebhookVerifyTokens: map[string]string{
 				"whatsapp":  getEnv("WHATSAPP_VERIFY_TOKEN", ""),
@@ -91,7 +104,23 @@ func Load() *Config {
 				"instagram": getEnv("INSTAGRAM_VERIFY_TOKEN", ""),
 				"telegram":  getEnv("TELEGRAM_VERIFY_TOKEN", ""),
 				"webchat":   getEnv("WEBCHAT_VERIFY_TOKEN", ""),
+				"tawkto":    getEnv("TAWKTO_VERIFY_TOKEN", ""),
 			},
+		},
+		MercadoPago: MercadoPagoConfig{
+			AccessToken:  getEnv("MP_ACCESS_TOKEN", ""),
+			ClientID:     getEnv("MP_CLIENT_ID", ""),
+			ClientSecret: getEnv("MP_CLIENT_SECRET", ""),
+			Environment:  getEnv("MP_ENVIRONMENT", "sandbox"),
+			WebhookURL:   getEnv("MP_WEBHOOK_URL", ""),
+			SecretKey:    getEnv("MP_WEBHOOK_SECRET", ""),
+		},
+		TawkTo: TawkToConfig{
+			APIKey:        getEnv("TAWKTO_API_KEY", ""),
+			BaseURL:       getEnv("TAWKTO_BASE_URL", "https://api.tawk.to"),
+			WebhookSecret: getEnv("TAWKTO_WEBHOOK_SECRET", ""),
+			WidgetID:      getEnv("TAWKTO_WIDGET_ID", ""),
+			PropertyID:    getEnv("TAWKTO_PROPERTY_ID", ""),
 		},
 	}
 }

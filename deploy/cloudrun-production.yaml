@@ -97,6 +97,33 @@ spec:
             secretKeyRef:
               key: latest
               name: it-webchat-webhook-secret
+        - name: TAWKTO_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-tawkto-api-key
+        - name: TAWKTO_BASE_URL
+          value: "https://api.tawk.to"
+        - name: TAWKTO_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-tawkto-webhook-secret
+        - name: TAWKTO_WIDGET_ID
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-tawkto-widget-id
+        - name: TAWKTO_PROPERTY_ID
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-tawkto-property-id
+        - name: TAWKTO_VERIFY_TOKEN
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: it-tawkto-verify-token
 
         resources:
           limits:

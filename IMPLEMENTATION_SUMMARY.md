@@ -108,6 +108,14 @@ MP_CLIENT_SECRET=your-mp-client-secret
 MP_ENVIRONMENT=production
 MP_WEBHOOK_URL=https://your-domain.com/api/v1/webhooks/mercadopago
 MP_WEBHOOK_SECRET=your-mp-webhook-secret
+
+# Tawk.to Configuration
+TAWKTO_API_KEY=your-tawkto-api-key
+TAWKTO_BASE_URL=https://api.tawk.to
+TAWKTO_WEBHOOK_SECRET=your-tawkto-webhook-secret
+TAWKTO_WIDGET_ID=your-tawkto-widget-id
+TAWKTO_PROPERTY_ID=your-tawkto-property-id
+TAWKTO_VERIFY_TOKEN=your-tawkto-verify-token
 ```
 
 ### **2. Validación de Webhooks Robusta** ✅
@@ -124,6 +132,7 @@ MP_WEBHOOK_SECRET=your-mp-webhook-secret
 - ✅ **Instagram**
 - ✅ **Telegram Bot API**
 - ✅ **Webchat (custom)**
+- ✅ **Tawk.to Integration** ⭐ **NUEVO**
 - ✅ **Mercado Pago**
 
 ### **3. Integración Completa con Mercado Pago** ✅
@@ -206,12 +215,48 @@ GET /metrics  # Endpoint de métricas
 - ✅ **Instagram Setup Service**
 - ✅ **Telegram Setup Service**
 - ✅ **Webchat Setup Service**
+- ✅ **Tawk.to Setup Service** ⭐ **NUEVO**
 
 #### **Funcionalidades por Plataforma**
 - **Configuración de integración**
 - **Validación de tokens**
 - **Configuración de webhooks**
 - **Pruebas de mensajes**
+
+### **9. Integración Tawk.to Completa** ⭐ **NUEVO** ✅
+
+#### **Endpoints Implementados**
+```bash
+# Tawk.to Setup
+POST   /api/v1/integrations/tawkto/setup           # Configurar integración
+GET    /api/v1/integrations/tawkto/config/:tenant  # Obtener configuración
+PUT    /api/v1/integrations/tawkto/config/:tenant  # Actualizar configuración
+
+# Analytics y Sesiones
+GET    /api/v1/integrations/tawkto/analytics/:tenant  # Analytics de chat
+GET    /api/v1/integrations/tawkto/sessions/:tenant   # Sesiones activas
+
+# Webhooks
+POST   /api/v1/integrations/webhooks/tawkto        # Webhook de Tawk.to
+```
+
+#### **Funcionalidades Implementadas**
+- ✅ **Configuración completa** de widgets y propiedades
+- ✅ **Validación de credenciales** con API de Tawk.to
+- ✅ **Webhooks con validación HMAC SHA256**
+- ✅ **Analytics y métricas** de chat en tiempo real
+- ✅ **Gestión de sesiones** activas
+- ✅ **Normalización de mensajes** a formato estándar
+- ✅ **Configuración automática** de webhooks en Tawk.to
+- ✅ **Personalización** (CSS, JS, mensajes de bienvenida)
+- ✅ **Integración perfecta** con el sistema de mensajería
+
+#### **Ventajas de Tawk.to**
+- 🚀 **Chat profesional** desde el día 1
+- 📊 **Analytics avanzados** incluidos
+- 🛠️ **Soporte técnico** disponible
+- 📈 **Escalabilidad** automática
+- ⚡ **Integración rápida** (1-2 días vs 2-3 semanas)
 - **Información de cuentas/bots**
 
 ### **9. Middleware de Seguridad** ✅

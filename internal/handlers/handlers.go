@@ -6,6 +6,7 @@ import (
 	"it-integration-service/internal/config"
 	"it-integration-service/internal/domain"
 	"it-integration-service/internal/middleware"
+	"it-integration-service/internal/repository"
 	"it-integration-service/internal/services"
 	"it-integration-service/pkg/logger"
 
@@ -19,7 +20,7 @@ type Handler struct {
 	logger        logger.Logger
 }
 
-func SetupRoutes(router *gin.Engine, healthService services.HealthService, integrationService services.IntegrationService, logger logger.Logger, cfg *config.Config) {
+func SetupRoutes(router *gin.Engine, healthService services.HealthService, integrationService services.IntegrationService, logger logger.Logger, cfg *config.Config, db *repository.PostgresDB) {
 	h := &Handler{
 		healthService: healthService,
 		logger:        logger,
@@ -43,6 +44,11 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 
 	webchatSetupService := services.NewWebchatSetupService(logger)
 	webchatSetupHandler := NewWebchatSetupHandler(webchatSetupService, integrationService, logger)
+
+	// Tawk.to service (usando el repositorio directamente)
+	channelRepo := repository.NewChannelIntegrationRepository(db)
+	tawkToSetupService := services.NewTawkToService(&cfg.TawkTo, channelRepo, logger)
+	tawkToSetupHandler := NewTawkToHandler(tawkToSetupService, logger)
 
 	// Webhook validation middleware
 	webhookValidation := middleware.NewWebhookValidationMiddleware(cfg, logger)
@@ -123,6 +129,15 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 				webchat.POST("/validate", webchatSetupHandler.ValidateWebchatConfig)
 			}
 
+			tawkto := integrations.Group("/tawkto")
+			{
+				tawkto.POST("/setup", tawkToSetupHandler.SetupTawkToIntegration)
+				tawkto.GET("/config/:tenant_id", tawkToSetupHandler.GetTawkToConfig)
+				tawkto.PUT("/config/:tenant_id", tawkToSetupHandler.UpdateTawkToConfig)
+				tawkto.GET("/analytics/:tenant_id", tawkToSetupHandler.GetTawkToAnalytics)
+				tawkto.GET("/sessions/:tenant_id", tawkToSetupHandler.GetTawkToSessions)
+			}
+
 			// Webhooks
 			webhooks := integrations.Group("/webhooks")
 			{
@@ -143,6 +158,9 @@ func SetupRoutes(router *gin.Engine, healthService services.HealthService, integ
 
 				// Webchat webhooks (sin validación específica por ahora)
 				webhooks.POST("/webchat", integrationHandler.WebchatWebhook)
+
+				// Tawk.to webhooks con validación
+				webhooks.POST("/tawkto", webhookValidation.ValidateWebhookSignature("tawkto"), tawkToSetupHandler.TawkToWebhookHandler)
 			}
 		}
 	}
