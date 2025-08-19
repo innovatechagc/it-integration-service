@@ -1,22 +1,22 @@
 package domain
 
 import (
-	"time"
 	"encoding/json"
+	"time"
 )
 
 // ChannelIntegration representa una integración de canal de mensajería
 type ChannelIntegration struct {
-	ID          string                 `json:"id" db:"id"`
-	TenantID    string                 `json:"tenant_id" db:"tenant_id"`
-	Platform    Platform               `json:"platform" db:"platform"`
-	Provider    Provider               `json:"provider" db:"provider"`
-	AccessToken string                 `json:"access_token,omitempty" db:"access_token"` // Encrypted, allow receiving but don't always show
-	WebhookURL  string                 `json:"webhook_url" db:"webhook_url"`
-	Status      IntegrationStatus      `json:"status" db:"status"`
-	Config      json.RawMessage        `json:"config" db:"config"`
-	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
+	ID          string            `json:"id" db:"id"`
+	TenantID    string            `json:"tenant_id" db:"tenant_id"`
+	Platform    Platform          `json:"platform" db:"platform"`
+	Provider    Provider          `json:"provider" db:"provider"`
+	AccessToken string            `json:"access_token,omitempty" db:"access_token"` // Encrypted, allow receiving but don't always show
+	WebhookURL  string            `json:"webhook_url" db:"webhook_url"`
+	Status      IntegrationStatus `json:"status" db:"status"`
+	Config      json.RawMessage   `json:"config" db:"config"`
+	CreatedAt   time.Time         `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at" db:"updated_at"`
 }
 
 // InboundMessage representa un mensaje entrante para logs/debug
@@ -41,8 +41,8 @@ type OutboundMessageLog struct {
 
 // SendMessageRequest representa una solicitud de envío de mensaje
 type SendMessageRequest struct {
-	ChannelID string      `json:"channel_id" binding:"required"`
-	Recipient string      `json:"recipient" binding:"required"`
+	ChannelID string         `json:"channel_id" binding:"required"`
+	Recipient string         `json:"recipient" binding:"required"`
 	Content   MessageContent `json:"content" binding:"required"`
 }
 
@@ -65,12 +65,13 @@ type MediaContent struct {
 type Platform string
 
 const (
-	PlatformWhatsApp  Platform = "whatsapp"
-	PlatformMessenger Platform = "messenger"
-	PlatformInstagram Platform = "instagram"
-	PlatformTelegram  Platform = "telegram"
-	PlatformWebchat   Platform = "webchat"
-	PlatformMailchimp Platform = "mailchimp"
+	PlatformWhatsApp       Platform = "whatsapp"
+	PlatformMessenger      Platform = "messenger"
+	PlatformInstagram      Platform = "instagram"
+	PlatformTelegram       Platform = "telegram"
+	PlatformWebchat        Platform = "webchat"
+	PlatformMailchimp      Platform = "mailchimp"
+	PlatformGoogleCalendar Platform = "google_calendar"
 )
 
 // Provider enum para proveedores de servicios
@@ -82,6 +83,7 @@ const (
 	Provider360Dialog Provider = "360dialog"
 	ProviderCustom    Provider = "custom"
 	ProviderMailchimp Provider = "mailchimp"
+	ProviderGoogle    Provider = "google"
 )
 
 // IntegrationStatus enum para estado de integración
@@ -101,6 +103,153 @@ const (
 	MessageStatusFailed MessageStatus = "failed"
 	MessageStatusQueued MessageStatus = "queued"
 )
+
+// CalendarType enum para tipos de calendario de Google
+type CalendarType string
+
+const (
+	CalendarTypePersonal CalendarType = "personal"
+	CalendarTypeWork     CalendarType = "work"
+	CalendarTypeShared   CalendarType = "shared"
+)
+
+// EventStats representa estadísticas de eventos
+type EventStats struct {
+	TotalEvents     int `json:"total_events"`
+	UpcomingEvents  int `json:"upcoming_events"`
+	PastEvents      int `json:"past_events"`
+	CancelledEvents int `json:"cancelled_events"`
+	ActiveChannels  int `json:"active_channels"`
+}
+
+// CalendarEvent representa un evento de calendario
+type CalendarEvent struct {
+	ID          string             `json:"id"`
+	TenantID    string             `json:"tenant_id"`
+	ChannelID   string             `json:"channel_id"`
+	GoogleID    string             `json:"google_id"`
+	CalendarID  string             `json:"calendar_id"`
+	Summary     string             `json:"summary"`
+	Description string             `json:"description"`
+	Location    string             `json:"location"`
+	StartTime   time.Time          `json:"start_time"`
+	EndTime     time.Time          `json:"end_time"`
+	AllDay      bool               `json:"all_day"`
+	Attendees   []CalendarAttendee `json:"attendees"`
+	Recurrence  *EventRecurrence   `json:"recurrence,omitempty"`
+	Status      EventStatus        `json:"status"`
+	Visibility  EventVisibility    `json:"visibility"`
+	Reminders   []EventReminder    `json:"reminders"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+	DeletedAt   *time.Time         `json:"deleted_at,omitempty"` // Soft delete
+}
+
+// CalendarAttendee representa un asistente a un evento
+type CalendarAttendee struct {
+	Email          string `json:"email" db:"email"`
+	Name           string `json:"name" db:"name"`
+	ResponseStatus string `json:"response_status" db:"response_status"` // accepted, declined, tentative, needsAction
+	Organizer      bool   `json:"organizer" db:"organizer"`
+	Self           bool   `json:"self" db:"self"`
+}
+
+// EventRecurrence representa la recurrencia de un evento
+type EventRecurrence struct {
+	Frequency  string     `json:"frequency" db:"frequency"`                 // daily, weekly, monthly, yearly
+	Interval   int        `json:"interval" db:"interval"`                   // cada cuántos días/semanas/meses/años
+	Count      int        `json:"count" db:"count"`                         // número de ocurrencias
+	Until      *time.Time `json:"until,omitempty" db:"until"`               // fecha hasta cuándo
+	ByDay      []string   `json:"by_day,omitempty" db:"by_day"`             // días de la semana (MO, TU, WE, etc.)
+	ByMonth    []int      `json:"by_month,omitempty" db:"by_month"`         // meses del año
+	ByMonthDay []int      `json:"by_month_day,omitempty" db:"by_month_day"` // días del mes
+}
+
+// EventStatus enum para estado de eventos
+type EventStatus string
+
+const (
+	EventStatusConfirmed EventStatus = "confirmed"
+	EventStatusTentative EventStatus = "tentative"
+	EventStatusCancelled EventStatus = "cancelled"
+)
+
+// EventVisibility enum para visibilidad de eventos
+type EventVisibility string
+
+const (
+	EventVisibilityDefault EventVisibility = "default"
+	EventVisibilityPublic  EventVisibility = "public"
+	EventVisibilityPrivate EventVisibility = "private"
+)
+
+// EventReminder representa un recordatorio de evento
+type EventReminder struct {
+	Method  string `json:"method" db:"method"`   // email, popup, sms
+	Minutes int    `json:"minutes" db:"minutes"` // minutos antes del evento
+}
+
+// GoogleCalendarIntegration representa una integración de Google Calendar
+type GoogleCalendarIntegration struct {
+	ID              string                 `json:"id"`
+	TenantID        string                 `json:"tenant_id"`
+	ChannelID       string                 `json:"channel_id"`
+	CalendarType    CalendarType           `json:"calendar_type"`
+	CalendarID      string                 `json:"calendar_id"`
+	CalendarName    string                 `json:"calendar_name"`
+	AccessToken     string                 `json:"access_token"`
+	RefreshToken    string                 `json:"refresh_token"`
+	TokenExpiry     time.Time              `json:"token_expiry"`
+	WebhookChannel  string                 `json:"webhook_channel"`
+	WebhookResource string                 `json:"webhook_resource"`
+	Status          IntegrationStatus      `json:"status"`
+	Config          map[string]interface{} `json:"config"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	DeletedAt       *time.Time             `json:"deleted_at,omitempty"` // Soft delete
+}
+
+// CreateEventRequest representa una solicitud de creación de evento
+type CreateEventRequest struct {
+	TenantID    string             `json:"tenant_id" binding:"required"`
+	ChannelID   string             `json:"channel_id" binding:"required"`
+	CalendarID  string             `json:"calendar_id" binding:"required"`
+	Summary     string             `json:"summary" binding:"required"`
+	Description string             `json:"description"`
+	Location    string             `json:"location"`
+	StartTime   time.Time          `json:"start_time" binding:"required"`
+	EndTime     time.Time          `json:"end_time" binding:"required"`
+	AllDay      bool               `json:"all_day"`
+	Attendees   []CalendarAttendee `json:"attendees"`
+	Recurrence  *EventRecurrence   `json:"recurrence"`
+	Visibility  EventVisibility    `json:"visibility"`
+	Reminders   []EventReminder    `json:"reminders"`
+}
+
+// UpdateEventRequest representa una solicitud de actualización de evento
+type UpdateEventRequest struct {
+	Summary     string             `json:"summary"`
+	Description string             `json:"description"`
+	Location    string             `json:"location"`
+	StartTime   *time.Time         `json:"start_time"`
+	EndTime     *time.Time         `json:"end_time"`
+	AllDay      *bool              `json:"all_day"`
+	Attendees   []CalendarAttendee `json:"attendees"`
+	Recurrence  *EventRecurrence   `json:"recurrence"`
+	Visibility  EventVisibility    `json:"visibility"`
+	Reminders   []EventReminder    `json:"reminders"`
+}
+
+// ListEventsRequest representa una solicitud de listado de eventos
+type ListEventsRequest struct {
+	TenantID   string     `json:"tenant_id" binding:"required"`
+	ChannelID  string     `json:"channel_id" binding:"required"`
+	CalendarID string     `json:"calendar_id"`
+	StartTime  *time.Time `json:"start_time"`
+	EndTime    *time.Time `json:"end_time"`
+	MaxResults int        `json:"max_results"`
+	PageToken  string     `json:"page_token"`
+}
 
 // User representa un usuario del sistema
 type User struct {
@@ -170,9 +319,9 @@ type BroadcastMessageRequest struct {
 
 // BroadcastResult representa el resultado de un envío masivo
 type BroadcastResult struct {
-	TotalSent    int                    `json:"total_sent"`
-	TotalFailed  int                    `json:"total_failed"`
-	Results      []BroadcastItemResult  `json:"results"`
+	TotalSent   int                   `json:"total_sent"`
+	TotalFailed int                   `json:"total_failed"`
+	Results     []BroadcastItemResult `json:"results"`
 }
 
 // BroadcastItemResult representa el resultado de un envío individual

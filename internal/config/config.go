@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -18,6 +19,7 @@ type Config struct {
 	MercadoPago MercadoPagoConfig
 	TawkTo      TawkToConfig
 	Mailchimp   MailchimpConfig
+	GoogleCalendar GoogleCalendarConfig
 }
 
 type VaultConfig struct {
@@ -67,6 +69,19 @@ type MailchimpConfig struct {
 	DataCenter    string `envconfig:"MAILCHIMP_DATA_CENTER"`
 }
 
+type GoogleCalendarConfig struct {
+	ClientID     string   `envconfig:"GOOGLE_CLIENT_ID" required:"true"`
+	ClientSecret string   `envconfig:"GOOGLE_CLIENT_SECRET" required:"true"`
+	RedirectURL  string   `envconfig:"GOOGLE_REDIRECT_URL" required:"true"`
+	Scopes       []string `envconfig:"GOOGLE_SCOPES"`
+	APIBaseURL   string   `envconfig:"GOOGLE_API_BASE_URL" default:"https://www.googleapis.com"`
+	TokenURL     string   `envconfig:"GOOGLE_TOKEN_URL" default:"https://oauth2.googleapis.com/token"`
+	AuthURL      string   `envconfig:"GOOGLE_AUTH_URL" default:"https://accounts.google.com/o/oauth2/auth"`
+	WebhookSecret string  `envconfig:"GOOGLE_WEBHOOK_SECRET"`
+	WebhookURL   string   `envconfig:"GOOGLE_WEBHOOK_URL"`
+	DefaultTimeZone string `envconfig:"GOOGLE_DEFAULT_TIMEZONE" default:"America/Mexico_City"`
+}
+
 func Load() *Config {
 	// Cargar variables de entorno desde .env si existe
 	_ = godotenv.Load()
@@ -106,6 +121,7 @@ func Load() *Config {
 				"webchat":   getEnv("WEBCHAT_WEBHOOK_SECRET", ""),
 				"tawkto":    getEnv("TAWKTO_WEBHOOK_SECRET", ""),
 				"mailchimp": getEnv("MAILCHIMP_WEBHOOK_SECRET", ""),
+				"google_calendar": getEnv("GOOGLE_WEBHOOK_SECRET", ""),
 			},
 			WebhookVerifyTokens: map[string]string{
 				"whatsapp":  getEnv("WHATSAPP_VERIFY_TOKEN", ""),
@@ -115,6 +131,7 @@ func Load() *Config {
 				"webchat":   getEnv("WEBCHAT_VERIFY_TOKEN", ""),
 				"tawkto":    getEnv("TAWKTO_VERIFY_TOKEN", ""),
 				"mailchimp": getEnv("MAILCHIMP_VERIFY_TOKEN", ""),
+				"google_calendar": getEnv("GOOGLE_VERIFY_TOKEN", ""),
 			},
 		},
 		MercadoPago: MercadoPagoConfig{
@@ -140,6 +157,22 @@ func Load() *Config {
 			AudienceID:    getEnv("MAILCHIMP_AUDIENCE_ID", ""),
 			DataCenter:    getEnv("MAILCHIMP_DATA_CENTER", ""),
 		},
+		GoogleCalendar: GoogleCalendarConfig{
+			ClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+			ClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+			RedirectURL:  getEnv("GOOGLE_REDIRECT_URL", ""),
+			Scopes:       getEnvAsSlice("GOOGLE_SCOPES", []string{
+				"https://www.googleapis.com/auth/calendar",
+				"https://www.googleapis.com/auth/calendar.events",
+				"https://www.googleapis.com/auth/calendar.readonly",
+			}),
+			APIBaseURL:   getEnv("GOOGLE_API_BASE_URL", "https://www.googleapis.com"),
+			TokenURL:     getEnv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+			AuthURL:      getEnv("GOOGLE_AUTH_URL", "https://accounts.google.com/o/oauth2/auth"),
+			WebhookSecret: getEnv("GOOGLE_WEBHOOK_SECRET", ""),
+			WebhookURL:   getEnv("GOOGLE_WEBHOOK_URL", ""),
+			DefaultTimeZone: getEnv("GOOGLE_DEFAULT_TIMEZONE", "America/Mexico_City"),
+		},
 	}
 }
 
@@ -155,6 +188,13 @@ func getEnvAsInt(key string, defaultValue int) int {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return intValue
 		}
+	}
+	return defaultValue
+}
+
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		return strings.Split(value, ",")
 	}
 	return defaultValue
 }
