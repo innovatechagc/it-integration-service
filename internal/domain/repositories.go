@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 // ChannelIntegrationRepository define las operaciones de persistencia para integraciones
@@ -54,4 +55,23 @@ type AuditRepository interface {
 type HealthRepository interface {
 	CheckDatabase(ctx context.Context) error
 	CheckExternalServices(ctx context.Context) map[string]error
+}
+
+// GoogleCalendarRepository define las operaciones del repositorio de Google Calendar
+type GoogleCalendarRepository interface {
+	// Operaciones de integración
+	CreateIntegration(ctx context.Context, integration *GoogleCalendarIntegration) error
+	GetIntegration(ctx context.Context, channelID string) (*GoogleCalendarIntegration, error)
+	GetIntegrationsByTenant(ctx context.Context, tenantID string) ([]*GoogleCalendarIntegration, error)
+	UpdateIntegration(ctx context.Context, integration *GoogleCalendarIntegration) error
+	DeleteIntegration(ctx context.Context, channelID string) error
+
+	// Operaciones de eventos
+	CreateEvent(ctx context.Context, event *CalendarEvent) error
+	GetEvent(ctx context.Context, eventID string) (*CalendarEvent, error)
+	GetEventsByChannel(ctx context.Context, channelID string) ([]*CalendarEvent, error)
+	GetEventsByTenant(ctx context.Context, tenantID string, limit, offset int) ([]*CalendarEvent, error)
+	UpdateEvent(ctx context.Context, event *CalendarEvent) error
+	DeleteEvent(ctx context.Context, eventID string) error
+	GetEventsByDateRange(ctx context.Context, channelID string, startTime, endTime time.Time) ([]*CalendarEvent, error)
 }
